@@ -6,6 +6,8 @@ heuristicEnricher.py — Suy metadata từ URL + tên file bằng luật cứng.
 """
 from typing import Dict, Any
 from urllib.parse import urlparse
+import urllib.parse
+import unicodedata
 # pyrefly: ignore [missing-import]
 from loguru import logger
 
@@ -15,6 +17,9 @@ from src.taxonomy import (
     DOC_TYPE_TO_GROUP,
 )
 
+def remove_accents(input_str: str) -> str:
+    nfkd_form = unicodedata.normalize('NFKD', input_str)
+    return u"".join([c for c in nfkd_form if not unicodedata.combining(c)]).lower()
 
 class HeuristicEnricher:
     """Suy luận metadata tài liệu từ URL và tên file bằng luật cứng."""
@@ -29,8 +34,10 @@ class HeuristicEnricher:
         Returns:
             Dict metadata (chỉ chứa các key có giá trị khác rỗng).
         """
-        name_lower = name.lower()
-        domain = urlparse(url).netloc
+        url_decoded = urllib.parse.unquote(url).lower().replace("-", " ").replace("_", " ").replace("/", " ")
+        name_lower = (name.lower() + " " + url_decoded).strip()
+        name_no_accents = remove_accents(name_lower)
+        domain = urllib.parse.urlparse(url).netloc
 
         metadata: Dict[str, Any] = {
             "linh_vucs": [],
@@ -40,6 +47,9 @@ class HeuristicEnricher:
             "sub_domain_ids": [],
             "source_tier": 0,
         }
+
+        def has_kw(kws):
+            return any(remove_accents(kw) in name_no_accents for kw in kws)
 
         # ── 1. Suy từ Domain ─────────────────────────────────────────────
         for domain_key, tier in DOMAIN_TIER_MAP.items():
@@ -55,149 +65,197 @@ class HeuristicEnricher:
         # ── 2. Suy Lĩnh vực + Sub-domain từ Tên ─────────────────────────
 
         # Nhận thức — Toán
-        if any(kw in name_lower for kw in ["toán", "làm quen toán", "số lượng", "hình học"]):
+        if has_kw(["toán", "làm quen toán", "số lượng", "hình học"]):
             self._add_linh_vuc(metadata, "nhan_thuc", "nt.toan")
 
         # Nhận thức — Khám phá Khoa học
-        if any(kw in name_lower for kw in ["khám phá khoa học", "kpkh", "khoa học tự nhiên",
+        if has_kw(["khám phá khoa học", "kpkh", "khoa học tự nhiên",
                                              "thí nghiệm", "động vật", "thực vật"]):
             self._add_linh_vuc(metadata, "nhan_thuc", "nt.kpkh")
 
         # Nhận thức — Khám phá xã hội
-        if any(kw in name_lower for kw in ["khám phá xã hội", "kpxh", "xã hội", "nghề nghiệp",
+        if has_kw(["khám phá xã hội", "kpxh", "xã hội", "nghề nghiệp",
                                              "giao thông", "gia đình"]):
             self._add_linh_vuc(metadata, "nhan_thuc", "nt.kpxh")
 
         # Ngôn ngữ — Đọc, Viết, Chữ cái
-        if any(kw in name_lower for kw in ["chữ cái", "tập đọc", "tập viết", "làm quen chữ",
+        if has_kw(["chữ cái", "tập đọc", "tập viết", "làm quen chữ",
                                              "đọc viết", "tiếng việt", "âm vần", "bảng chữ"]):
             self._add_linh_vuc(metadata, "ngon_ngu", "nn.doc_viet")
 
         # Ngôn ngữ — Nghe, Nói
-        if any(kw in name_lower for kw in ["nghe nói", "nghe-nói", "phát triển ngôn ngữ",
+        if has_kw(["nghe nói", "nghe-nói", "phát triển ngôn ngữ",
                                              "giao tiếp", "hội thoại"]):
             self._add_linh_vuc(metadata, "ngon_ngu", "nn.nghe_noi")
 
         # Ngôn ngữ — Văn học
-        if any(kw in name_lower for kw in ["kể chuyện", "truyện", "thơ", "đồng dao",
+        if has_kw(["kể chuyện", "truyện", "thơ", "đồng dao",
                                              "văn học", "câu chuyện", "truyện tranh"]):
             self._add_linh_vuc(metadata, "ngon_ngu", "nn.van_hoc")
             if not metadata["doc_type"]:
                 metadata["doc_type"] = "bt.truyen_tho"
 
         # Thẩm mỹ — Tạo hình
-        if any(kw in name_lower for kw in ["tạo hình", "vẽ", "nặn", "cắt", "dán",
+        if has_kw(["tạo hình", "vẽ", "nặn", "cắt", "dán",
                                              "mỹ thuật", "tô màu", "nghệ thuật tạo hình"]):
             self._add_linh_vuc(metadata, "tham_my", "tm.tao_hinh")
 
         # Thẩm mỹ — Âm nhạc
-        if any(kw in name_lower for kw in ["âm nhạc", "hát", "múa", "nhạc", "vận động âm nhạc",
+        if has_kw(["âm nhạc", "hát", "múa", "nhạc", "vận động âm nhạc",
                                              "nghe nhạc", "bài hát"]):
             self._add_linh_vuc(metadata, "tham_my", "tm.am_nhac")
 
         # Thể chất — Vận động
-        if any(kw in name_lower for kw in ["thể dục", "vận động", "thể chất", "thể thao",
+        if has_kw(["thể dục", "vận động", "thể chất", "thể thao",
                                              "rèn luyện thân thể", "phát triển thể lực"]):
             self._add_linh_vuc(metadata, "the_chat", "tc.van_dong")
 
         # Thể chất — Dinh dưỡng
-        if any(kw in name_lower for kw in ["dinh dưỡng", "ăn uống", "thực phẩm", "vệ sinh",
+        if has_kw(["dinh dưỡng", "ăn uống", "thực phẩm", "vệ sinh",
                                              "an toàn thực phẩm", "sức khoẻ", "sức khỏe"]):
             self._add_linh_vuc(metadata, "the_chat", "tc.dinh_duong")
 
         # Tình cảm - Xã hội — Tình cảm
-        if any(kw in name_lower for kw in ["tình cảm", "cảm xúc", "yêu thương", "thân thiện"]):
+        if has_kw(["tình cảm", "cảm xúc", "yêu thương", "thân thiện"]):
             self._add_linh_vuc(metadata, "tinh_cam_xh", "tx.tinh_cam")
 
         # Tình cảm - Xã hội — Kỹ năng xã hội
-        if any(kw in name_lower for kw in ["kỹ năng sống", "kỹ năng xã hội", "ứng xử",
+        if has_kw(["kỹ năng sống", "kỹ năng xã hội", "ứng xử",
                                              "phép lịch sự", "tự phục vụ"]):
             self._add_linh_vuc(metadata, "tinh_cam_xh", "tx.kn_xh")
 
         # ── 3. Suy doc_type từ Tên ───────────────────────────────────────
 
-        if any(kw in name_lower for kw in ["thông tư", "quyết định", "nghị định"]):
+        if has_kw(["thông tư", "quyết định", "nghị định"]):
             metadata["doc_type"] = "pl.thong_tu"
             metadata["source_tier"] = max(metadata["source_tier"], 3)
 
-        elif any(kw in name_lower for kw in ["chương trình gdmn", "chương trình giáo dục mầm non",
+        elif has_kw(["chương trình gdmn", "chương trình giáo dục mầm non",
                                                "vbhn", "chuẩn phát triển"]):
             metadata["doc_type"] = "pl.chuong_trinh"
             metadata["source_tier"] = max(metadata["source_tier"], 3)
 
-        elif any(kw in name_lower for kw in ["sáng kiến kinh nghiệm", "skkn"]):
+        elif has_kw(["sáng kiến kinh nghiệm", "skkn"]):
             metadata["doc_type"] = "kn.skkn"
             metadata["source_tier"] = max(metadata["source_tier"], 1)
 
-        elif any(kw in name_lower for kw in ["kinh nghiệm", "mẹo dạy", "mẹo"]):
+        elif has_kw(["kinh nghiệm", "mẹo dạy", "mẹo"]):
             if not metadata["doc_type"]:
                 metadata["doc_type"] = "kn.kinh_nghiem"
                 metadata["source_tier"] = max(metadata["source_tier"], 1)
 
-        elif any(kw in name_lower for kw in ["dự giờ", "đánh giá tiết dạy"]):
+        elif has_kw(["dự giờ", "đánh giá tiết dạy"]):
             metadata["doc_type"] = "kn.du_gio"
             metadata["source_tier"] = max(metadata["source_tier"], 1)
 
-        elif "giáo án" in name_lower:
+        elif has_kw(["giáo án"]):
             if not metadata["doc_type"]:
                 metadata["doc_type"] = "gt.giao_an"
                 metadata["source_tier"] = max(metadata["source_tier"], 2)
 
-        elif any(kw in name_lower for kw in ["sgk", "sách giáo khoa"]):
+        elif has_kw(["sgk", "sách giáo khoa"]):
             if not metadata["doc_type"]:
                 metadata["doc_type"] = "sgk.sgk"
                 metadata["source_tier"] = max(metadata["source_tier"], 2)
 
-        elif any(kw in name_lower for kw in ["nâng cao", "bài tập nâng cao"]):
+        elif has_kw(["nâng cao", "bài tập nâng cao"]):
             if not metadata["doc_type"]:
                 metadata["doc_type"] = "bt.nang_cao"
 
-        elif any(kw in name_lower for kw in ["sách bài tập", "vở bài tập", "bài tập"]):
+        elif has_kw(["sách bài tập", "vở bài tập", "bài tập"]):
             if not metadata["doc_type"]:
                 metadata["doc_type"] = "sgk.sbt"
                 metadata["source_tier"] = max(metadata["source_tier"], 2)
 
-        elif any(kw in name_lower for kw in ["sách giáo viên", "hướng dẫn giáo viên"]):
+        elif has_kw(["sách giáo viên", "hướng dẫn giáo viên"]):
             if not metadata["doc_type"]:
                 metadata["doc_type"] = "sgk.sgv"
                 metadata["source_tier"] = max(metadata["source_tier"], 2)
 
-        elif any(kw in name_lower for kw in ["bổ trợ", "tài liệu bổ trợ"]):
+        elif has_kw(["bổ trợ", "tài liệu bổ trợ"]):
             if not metadata["doc_type"]:
                 metadata["doc_type"] = "bt.bo_tro"
 
-        elif any(kw in name_lower for kw in ["kỹ năng", "kỹ năng mềm"]):
+        elif has_kw(["kỹ năng", "kỹ năng mềm"]):
             if not metadata["doc_type"]:
                 metadata["doc_type"] = "bt.ky_nang"
 
-        elif any(kw in name_lower for kw in ["nghiên cứu", "luận văn", "luận án"]):
+        elif has_kw(["nghiên cứu", "luận văn", "luận án", "nghiên cứu khoa học"]):
             if not metadata["doc_type"]:
                 metadata["doc_type"] = "nc.nghien_cuu"
 
-        elif any(kw in name_lower for kw in ["bài báo", "tạp chí"]):
+        elif has_kw(["bài báo", "tạp chí", "journal", "article", "vjol", "tapchi"]):
             if not metadata["doc_type"]:
                 metadata["doc_type"] = "nc.bai_bao"
 
-        elif any(kw in name_lower for kw in ["tập huấn", "bồi dưỡng giáo viên"]):
+        elif has_kw(["tập huấn", "bồi dưỡng giáo viên"]):
             if not metadata["doc_type"]:
                 metadata["doc_type"] = "nc.tap_huan"
+                
+        elif has_kw(["tranh tô màu", "hình ảnh", "flashcard", "thẻ học", "tranh ảnh"]):
+            if not metadata["doc_type"]:
+                metadata["doc_type"] = "md.hinh_anh"
+                
+        elif has_kw(["tập tô", "vở tập tô", "tô chữ"]):
+            if not metadata["doc_type"]:
+                metadata["doc_type"] = "sgk.tap_to"
+                metadata["source_tier"] = max(metadata["source_tier"], 2)
+                
+        elif has_kw(["kế hoạch giáo dục", "kế hoạch giảng dạy", "kế hoạch năm học", "kế hoạch tháng"]):
+            if not metadata["doc_type"]:
+                metadata["doc_type"] = "gt.truong"
+                metadata["source_tier"] = max(metadata["source_tier"], 2)
+                
+        elif has_kw(["công văn", "chỉ thị", "kế hoạch số"]):
+            metadata["doc_type"] = "pl.cong_van"
+            metadata["source_tier"] = max(metadata["source_tier"], 3)
+
+        elif has_kw(["chuẩn 5 tuổi", "chuẩn phát triển trẻ 5 tuổi", "bộ chuẩn"]):
+            metadata["doc_type"] = "pl.chuan_5t"
+            metadata["source_tier"] = max(metadata["source_tier"], 3)
+
+        elif has_kw(["quốc tế", "montessori", "reggio emilia", "waldorf", "steam", "stem"]):
+            if not metadata["doc_type"]:
+                metadata["doc_type"] = "gt.quoc_te"
+
+        elif has_kw(["chương trình nước ngoài", "giáo dục quốc tế"]):
+            if not metadata["doc_type"]:
+                metadata["doc_type"] = "nc.ct_nuoc_ngoai"
+                
+        elif has_kw(["video", "hoạt hình", "clip"]):
+            if not metadata["doc_type"]:
+                metadata["doc_type"] = "md.video"
+                
+        elif has_kw(["âm thanh", "mp3", "audio", "nhạc beat"]):
+            if not metadata["doc_type"]:
+                metadata["doc_type"] = "md.am_thanh"
+
+        elif has_kw(["worksheet", "phiếu bài tập", "phiếu ôn tập"]):
+            if not metadata["doc_type"]:
+                metadata["doc_type"] = "bt.bo_tro"
 
         # ── 4. Suy Age Band từ Tên ──────────────────────────────────────
-        if any(kw in name_lower for kw in ["3 tuổi", "3-4", "nhà trẻ"]):
+        if has_kw(["3 tuổi", "3-4", "nhà trẻ"]):
             if "34" not in metadata["age_bands"]:
                 metadata["age_bands"].append("34")
 
-        if any(kw in name_lower for kw in ["4 tuổi", "4-5"]):
+        if has_kw(["4 tuổi", "4-5"]):
             if "45" not in metadata["age_bands"]:
                 metadata["age_bands"].append("45")
 
-        if any(kw in name_lower for kw in ["5 tuổi", "5-6", "lớp lá", "mẫu giáo lớn"]):
+        if has_kw(["5 tuổi", "5-6", "lớp lá", "mẫu giáo lớn"]):
             if "56" not in metadata["age_bands"]:
                 metadata["age_bands"].append("56")
 
-        if any(kw in name_lower for kw in ["lớp 1", "gdpt", "tiểu học"]):
-            if "g1" not in metadata["age_bands"]:
-                metadata["age_bands"].append("g1")
+        if has_kw(["học kỳ 1", "hk1", "hk 1", "kì 1", "ki 1"]) and has_kw(["lớp 1", "gdpt", "tiểu học"]):
+            if "g1_hk1" not in metadata["age_bands"]:
+                metadata["age_bands"].append("g1_hk1")
+        elif has_kw(["học kỳ 2", "hk2", "hk 2", "kì 2", "ki 2"]) and has_kw(["lớp 1", "gdpt", "tiểu học"]):
+            if "g1_hk2" not in metadata["age_bands"]:
+                metadata["age_bands"].append("g1_hk2")
+        elif has_kw(["lớp 1", "gdpt", "tiểu học"]):
+            if "g1_hk1" not in metadata["age_bands"] and "g1_hk2" not in metadata["age_bands"]:
+                metadata["age_bands"].append("g1_hk1") # Default to HK1 if not specified
 
         # ── 5. Tự động suy doc_group từ doc_type ─────────────────────────
         if metadata["doc_type"] and not metadata["doc_group"]:

@@ -1,0 +1,401 @@
+{
+  "info": {
+    "name": "IruKa Crawler — API Test Collection",
+    "description": "Collection kiểm tra các API endpoint mà hệ thống IruKa Crawler phụ thuộc:\n- Ollama Local LLM (http://localhost:11434)\n- Tavily Search API\n- Exa Search API\n\nCách dùng:\n1. Import file này vào Postman\n2. Set biến môi trường: TAVILY_API_KEY, EXA_API_KEY\n3. Đảm bảo Ollama đang chạy tại localhost:11434\n4. Chạy lần lượt từng folder theo thứ tự",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "iruka-crawler-api-tests-v1"
+  },
+  "variable": [
+    { "key": "OLLAMA_HOST", "value": "http://localhost:11434" },
+    { "key": "OLLAMA_MODEL", "value": "llama3" },
+    { "key": "TAVILY_API_KEY", "value": "YOUR_TAVILY_API_KEY_HERE" },
+    { "key": "EXA_API_KEY", "value": "YOUR_EXA_API_KEY_HERE" }
+  ],
+  "item": [
+    {
+      "name": "1. Ollama Local LLM",
+      "description": "Kiểm tra Ollama đang hoạt động và model llama3 có sẵn.",
+      "item": [
+        {
+          "name": "1.1 Health Check — Ollama Running",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{OLLAMA_HOST}}", "host": ["{{OLLAMA_HOST}}"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Ollama đang chạy (HTTP 200)', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response body chứa Ollama', function() {",
+                  "    pm.expect(pm.response.text()).to.include('Ollama');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.2 List Models — Kiểm tra llama3 có sẵn",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{OLLAMA_HOST}}/api/tags", "host": ["{{OLLAMA_HOST}}"], "path": ["api", "tags"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('API tags trả về HTTP 200', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response là JSON hợp lệ', function() {",
+                  "    pm.response.to.be.json;",
+                  "});",
+                  "pm.test('Có ít nhất 1 model', function() {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.models).to.be.an('array').that.is.not.empty;",
+                  "});",
+                  "pm.test('Model llama3 hoặc gemma3 có sẵn', function() {",
+                  "    var json = pm.response.json();",
+                  "    var names = json.models.map(m => m.name);",
+                  "    var hasModel = names.some(n => n.includes('llama') || n.includes('gemma'));",
+                  "    pm.expect(hasModel).to.be.true;",
+                  "    console.log('Models hiện có:', names.join(', '));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.3 Chat — Phân loại tài liệu (JSON mode)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{OLLAMA_HOST}}/api/chat", "host": ["{{OLLAMA_HOST}}"], "path": ["api", "chat"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"{{OLLAMA_MODEL}}\",\n  \"format\": \"json\",\n  \"options\": { \"temperature\": 0.0 },\n  \"stream\": false,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Bạn là chuyên gia phân loại tài liệu giáo dục mầm non Việt Nam.\\nPhân tích tài liệu sau và trả về JSON hợp lệ, không giải thích thêm.\\n\\nDANH MỤC HỢP LỆ:\\n- linh_vucs: [nhan_thuc, ngon_ngu, tham_my, the_chat, tinh_cam_xh]\\n- age_bands: [34, 45, 56, g1]\\n- doc_type: [gt.giao_an, sgk.sgk, bt.truyen_tho, pl.thong_tu, kn.skkn, khac]\\n- source_tier: 1 (blog), 2 (SGK), 3 (Bộ GD)\\n\\nTiêu đề: Giáo án kể chuyện Ba chú heo con cho trẻ 5-6 tuổi\\nURL: https://giaovienmamnon.com/giao-an-ke-chuyen\\n\\nTrả về JSON format:\\n{\\\"linh_vucs\\\": [...], \\\"age_bands\\\": [...], \\\"doc_type\\\": \\\"...\\\", \\\"source_tier\\\": 1}\"\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('LLM trả về HTTP 200', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response có field message.content', function() {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json).to.have.property('message');",
+                  "    pm.expect(json.message).to.have.property('content');",
+                  "});",
+                  "pm.test('Content parse được thành JSON (metadata)', function() {",
+                  "    var json = pm.response.json();",
+                  "    var content = json.message.content;",
+                  "    try {",
+                  "        var meta = JSON.parse(content);",
+                  "        pm.expect(meta).to.have.property('linh_vucs');",
+                  "        pm.expect(meta).to.have.property('age_bands');",
+                  "        pm.expect(meta).to.have.property('doc_type');",
+                  "        pm.expect(meta).to.have.property('source_tier');",
+                  "        console.log('Metadata:', JSON.stringify(meta, null, 2));",
+                  "    } catch(e) {",
+                  "        pm.expect.fail('LLM không trả về JSON hợp lệ: ' + content.substring(0, 200));",
+                  "    }",
+                  "});",
+                  "pm.test('linh_vucs là mảng không rỗng', function() {",
+                  "    var json = pm.response.json();",
+                  "    var meta = JSON.parse(json.message.content);",
+                  "    pm.expect(meta.linh_vucs).to.be.an('array').that.is.not.empty;",
+                  "});",
+                  "pm.test('source_tier là số 1, 2, hoặc 3', function() {",
+                  "    var json = pm.response.json();",
+                  "    var meta = JSON.parse(json.message.content);",
+                  "    pm.expect([1, 2, 3]).to.include(meta.source_tier);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.4 Chat — Phân loại tài liệu Bộ GD",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{OLLAMA_HOST}}/api/chat", "host": ["{{OLLAMA_HOST}}"], "path": ["api", "chat"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"{{OLLAMA_MODEL}}\",\n  \"format\": \"json\",\n  \"options\": { \"temperature\": 0.0 },\n  \"stream\": false,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Bạn là chuyên gia phân loại tài liệu giáo dục mầm non Việt Nam.\\nTrả về JSON cho tài liệu sau.\\n\\nDANH MỤC HỢP LỆ:\\n- linh_vucs: [nhan_thuc, ngon_ngu, tham_my, the_chat, tinh_cam_xh]\\n- age_bands: [34, 45, 56, g1]\\n- doc_type: [pl.chuong_trinh, pl.thong_tu, pl.cong_van, gt.giao_an, sgk.sgk, khac]\\n- source_tier: 1 (blog), 2 (SGK), 3 (Bộ GD)\\n\\nTiêu đề: Thông tư 51/2021/TT-BGDDT về Chương trình Giáo dục Mầm non\\nURL: https://moet.gov.vn/van-ban/thong-tu-51\\n\\nTrả về JSON: {\\\"linh_vucs\\\": [...], \\\"age_bands\\\": [...], \\\"doc_type\\\": \\\"...\\\", \\\"source_tier\\\": 3}\"\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('LLM trả về HTTP 200 cho tài liệu Bộ GD', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('source_tier phải là 3 cho tài liệu Bộ GD', function() {",
+                  "    var json = pm.response.json();",
+                  "    var meta = JSON.parse(json.message.content);",
+                  "    pm.expect(meta.source_tier).to.equal(3);",
+                  "});",
+                  "pm.test('doc_type phải là loại pháp lý', function() {",
+                  "    var json = pm.response.json();",
+                  "    var meta = JSON.parse(json.message.content);",
+                  "    var plTypes = ['pl.chuong_trinh', 'pl.thong_tu', 'pl.cong_van', 'pl.chuan_5t'];",
+                  "    pm.expect(plTypes).to.include(meta.doc_type);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.5 Generate — Test latency",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{OLLAMA_HOST}}/api/generate", "host": ["{{OLLAMA_HOST}}"], "path": ["api", "generate"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"{{OLLAMA_MODEL}}\",\n  \"prompt\": \"Trả lời bằng 1 từ: Mầm non nghĩa là gì?\",\n  \"stream\": false\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Generate API hoạt động', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response time < 30 giây', function() {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(30000);",
+                  "});",
+                  "pm.test('Có field response trong body', function() {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json).to.have.property('response');",
+                  "    console.log('Response time:', pm.response.responseTime + 'ms');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Tavily Search API",
+      "description": "Kiểm tra Tavily Search API — nguồn tìm kiếm URL tài liệu chính.\nYêu cầu: Set biến TAVILY_API_KEY.",
+      "item": [
+        {
+          "name": "2.1 Search — Tìm giáo án mầm non",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "https://api.tavily.com/search", "protocol": "https", "host": ["api", "tavily", "com"], "path": ["search"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"api_key\": \"{{TAVILY_API_KEY}}\",\n  \"query\": \"giáo án mầm non 5 tuổi filetype:pdf\",\n  \"max_results\": 5,\n  \"include_domains\": [\"moet.gov.vn\", \"giaovienmamnon.com\", \"mamnon.com\"]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Tavily API trả về HTTP 200', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response là JSON hợp lệ', function() {",
+                  "    pm.response.to.be.json;",
+                  "});",
+                  "pm.test('Có field results', function() {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json).to.have.property('results');",
+                  "    pm.expect(json.results).to.be.an('array');",
+                  "});",
+                  "pm.test('Mỗi kết quả có URL', function() {",
+                  "    var json = pm.response.json();",
+                  "    json.results.forEach(function(r) {",
+                  "        pm.expect(r).to.have.property('url');",
+                  "        pm.expect(r.url).to.match(/^https?:\\/\\//);",
+                  "    });",
+                  "    console.log('URLs tìm được:', json.results.map(r => r.url).join('\\n'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2.2 Search — Tìm SGK Toán lớp 1",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "https://api.tavily.com/search", "protocol": "https", "host": ["api", "tavily", "com"], "path": ["search"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"api_key\": \"{{TAVILY_API_KEY}}\",\n  \"query\": \"sách giáo khoa Toán lớp 1 Cánh Diều PDF\",\n  \"max_results\": 5\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Search Toán lớp 1 thành công', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Có ít nhất 1 kết quả', function() {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.results.length).to.be.above(0);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2.3 Search — Tìm Thông tư Bộ GD",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "https://api.tavily.com/search", "protocol": "https", "host": ["api", "tavily", "com"], "path": ["search"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"api_key\": \"{{TAVILY_API_KEY}}\",\n  \"query\": \"thông tư chương trình giáo dục mầm non site:moet.gov.vn\",\n  \"max_results\": 3,\n  \"search_depth\": \"advanced\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Tìm Thông tư Bộ GD thành công', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('URL kết quả thuộc moet.gov.vn', function() {",
+                  "    var json = pm.response.json();",
+                  "    if (json.results.length > 0) {",
+                  "        var hasMoet = json.results.some(r => r.url.includes('moet.gov.vn'));",
+                  "        console.log('Có kết quả từ moet.gov.vn:', hasMoet);",
+                  "    }",
+                  "    pm.expect(json.results).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Exa Search API",
+      "description": "Kiểm tra Exa Search API — nguồn tìm kiếm thay thế Tavily.\nYêu cầu: Set biến EXA_API_KEY.",
+      "item": [
+        {
+          "name": "3.1 Search — Tìm tài liệu mầm non",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-api-key", "value": "{{EXA_API_KEY}}" }
+            ],
+            "url": { "raw": "https://api.exa.ai/search", "protocol": "https", "host": ["api", "exa", "ai"], "path": ["search"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"giáo án mầm non phát triển ngôn ngữ 5 tuổi\",\n  \"numResults\": 5,\n  \"useAutoprompt\": true,\n  \"type\": \"neural\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Exa API trả về HTTP 200', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response chứa results', function() {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json).to.have.property('results');",
+                  "    pm.expect(json.results).to.be.an('array');",
+                  "});",
+                  "pm.test('Mỗi kết quả có url và title', function() {",
+                  "    var json = pm.response.json();",
+                  "    json.results.forEach(function(r) {",
+                  "        pm.expect(r).to.have.property('url');",
+                  "        pm.expect(r).to.have.property('title');",
+                  "    });",
+                  "    console.log('Exa results:', json.results.map(r => r.title).join('\\n'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4. Streamlit Dashboard",
+      "description": "Kiểm tra Streamlit dashboard đang chạy tại localhost:8501.",
+      "item": [
+        {
+          "name": "4.1 Health — Dashboard Running",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "http://localhost:8501", "protocol": "http", "host": ["localhost"], "port": "8501" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Dashboard đang chạy (HTTP 200)', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response chứa Streamlit', function() {",
+                  "    pm.expect(pm.response.text()).to.include('streamlit');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4.2 Health — Healthcheck endpoint",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "http://localhost:8501/healthz", "protocol": "http", "host": ["localhost"], "port": "8501", "path": ["healthz"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Healthcheck endpoint phản hồi', function() {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
+                  "    console.log('Status:', pm.response.status);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

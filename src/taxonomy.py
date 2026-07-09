@@ -20,7 +20,7 @@ VALID_LINH_VUCS: Set[str] = {
     "tinh_cam_xh",
 }
 
-VALID_AGE_BANDS: Set[str] = {"34", "45", "56", "g1"}
+VALID_AGE_BANDS: Set[str] = {"34", "45", "56", "g1_hk1", "g1_hk2"}
 
 VALID_SOURCE_TIERS: Set[int] = {1, 2, 3}
 

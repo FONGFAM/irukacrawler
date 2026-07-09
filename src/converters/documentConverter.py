@@ -73,6 +73,13 @@ class DocumentConverter:
         try:
             doc = docx.Document(file_path)
             md_content = []
+            
+            part_num = 1
+            word_count = 0
+            MAX_WORDS_PER_PART = 500
+            
+            md_content.append(f"\n--- Phần {part_num} ---\n")
+            
             for para in doc.paragraphs:
                 text = para.text.strip()
                 if not text:
@@ -86,6 +93,13 @@ class DocumentConverter:
                     md_content.append(f"### {text}\n")
                 else:
                     md_content.append(f"{text}\n")
+                    
+                word_count += len(text.split())
+                if word_count >= MAX_WORDS_PER_PART:
+                    part_num += 1
+                    md_content.append(f"\n--- Phần {part_num} ---\n")
+                    word_count = 0
+                    
             return "".join(md_content)
         except Exception as e:
             logger.error(f"Error converting DOCX {file_path}: {e}")

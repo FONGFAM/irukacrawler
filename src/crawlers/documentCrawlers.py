@@ -12,6 +12,8 @@ from typing import Optional
 # pyrefly: ignore [missing-import]
 import httpx
 # pyrefly: ignore [missing-import]
+from bs4 import BeautifulSoup
+# pyrefly: ignore [missing-import]
 from loguru import logger
 from urllib.parse import urlparse
 import os
@@ -169,6 +171,42 @@ class BaseCrawler:
                 json.dump(list(self.crawled_urls), f, ensure_ascii=False, indent=4)
         except Exception as e:
             logger.warning(f"Lỗi khi lưu crawled_urls.json: {e}")
+
+    # ─────────────────────────────────────────────
+    # Lấy tiêu đề trang từ HTML (giúp Heuristic phân loại tốt hơn)
+    # ─────────────────────────────────────────────
+    async def extract_page_title(self, url: str, content: Optional[bytes] = None) -> Optional[str]:
+        """Lấy tiêu đề trang web từ thẻ <title> để enrich metadata.
+        
+        Args:
+            url: URL của trang.
+            content: Nội dung HTML đã tải (nếu có), nếu None sẽ tự tải.
+            
+        Returns:
+            Tiêu đề trang hoặc None nếu không lấy được.
+        """
+        if content is None:
+            result = await self.fetch(url)
+            if not result:
+                return None
+            content, ext = result
+            if ext != ".html":
+                return None  # Chỉ xử lý HTML
+        
+        try:
+            soup = BeautifulSoup(content.decode("utf-8", errors="ignore"), 'html.parser')
+            title_tag = soup.find('title')
+            if title_tag and title_tag.text.strip():
+                title = title_tag.text.strip()
+                # Cắt bớt tên site ở cuối (VD: "... - Mamnon.com" → "...")
+                for suffix in [" - YouTube", " | Mamnon.com", " - Giaovienmamnon", " | Hoc10", " - Bộ GD&ĐT"]:
+                    if title.lower().endswith(suffix.lower()):
+                        title = title[:-len(suffix)]
+                return title.strip()
+        except Exception as e:
+            logger.debug(f"Không parse được title từ {url}: {e}")
+        
+        return None
 
     async def close(self):
         await self.client.aclose()

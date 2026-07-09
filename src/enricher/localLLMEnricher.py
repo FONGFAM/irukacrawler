@@ -36,9 +36,9 @@ class LocalLLMEnricher:
 
     def __init__(self):
         self.model = os.getenv("OLLAMA_MODEL", "llama3")
-        self.client = ollama.Client(host=os.getenv("OLLAMA_HOST", "http://localhost:11434"))
+        self.client = ollama.AsyncClient(host=os.getenv("OLLAMA_HOST", "http://localhost:11434"))
 
-    def analyze_document(self, name: str, url: str, preview: str) -> Optional[Dict[str, Any]]:
+    async def analyze_document(self, name: str, url: str, preview: str) -> Optional[Dict[str, Any]]:
         """Dùng LLM để phân loại tài liệu theo chuẩn IruKa.
 
         Args:
@@ -53,10 +53,12 @@ class LocalLLMEnricher:
 Phân tích thông tin dưới đây và trả về JSON hợp lệ, KHÔNG giải thích thêm.
 
 DANH MỤC HỢP LỆ (chỉ được chọn giá trị trong danh sách, không tự chế):
-- linh_vucs: [{_LINH_VUCS_STR}]
-- age_bands: [{_AGE_BANDS_STR}]
-- doc_type (chọn đúng 1): [{_DOC_TYPES_STR}, khac]
-- sub_domain_ids: [{_SUB_DOMAINS_STR}]
+- linh_vucs: [{_LINH_VUCS_STR}] (Ví dụ: nhan_thuc = Toán, Khám phá; ngon_ngu = Văn học, Chữ cái; tham_my = Tạo hình, Âm nhạc; the_chat = Vận động, Dinh dưỡng; tinh_cam_xh = Kỹ năng sống)
+- age_bands: [{_AGE_BANDS_STR}] (Ví dụ: 34 = 3-4 tuổi, 45 = 4-5 tuổi, 56 = 5-6 tuổi, g1_hk1 = Lớp 1 HK1, g1_hk2 = Lớp 1 HK2)
+- doc_type (chọn đúng 1): [{_DOC_TYPES_STR}, khac] 
+  + Gợi ý: pl.* (Pháp lý/Thông tư); sgk.* (Sách giáo khoa/Tập tô cho trẻ); gt.giao_an (Giáo án); gt.truong (Giáo trình); bt.bo_tro (Bài tập bổ trợ); bt.truyen_tho (Truyện/Thơ); kn.* (Sáng kiến kinh nghiệm/Mẹo dạy); nc.* (Nghiên cứu/Bài báo/Giáo trình dạy sinh viên/Tập huấn GV).
+  + CHÚ Ý: Nếu tài liệu là của HỌC SINH phổ thông (Lớp 2 đến Lớp 12, THCS, THPT) thì BẮT BUỘC chọn doc_type là "khac". Nếu là giáo trình đại học/cao đẳng DẠY VỀ MẦM NON thì chọn "nc.nghien_cuu" hoặc "nc.tap_huan".
+- sub_domain_ids: [{_SUB_DOMAINS_STR}] (Toán: nt.toan, Khoa học: nt.kpkh, XH: nt.kpxh, Đọc/Viết: nn.doc_viet, Nghe/Nói: nn.nghe_noi, Văn học: nn.van_hoc, Vẽ/Nặn: tm.tao_hinh, Nhạc: tm.am_nhac, Thể dục: tc.van_dong)
 - source_tier: 1 (blog/kinh nghiệm GV), 2 (SGK/giáo trình), 3 (Bộ GD/luật)
 
 Định dạng JSON cần trả về:
@@ -68,15 +70,24 @@ DANH MỤC HỢP LỆ (chỉ được chọn giá trị trong danh sách, không
     "source_tier": <1 hoặc 2 hoặc 3>
 }}
 
+VÍ DỤ TRẢ VỀ:
+{{
+    "linh_vucs": ["nhan_thuc"],
+    "age_bands": ["56"],
+    "doc_type": "gt.giao_an",
+    "sub_domain_ids": ["nt.toan"],
+    "source_tier": 1
+}}
+
 Tiêu đề: {name}
 URL: {url}
-Trích 1000 ký tự đầu nội dung:
-{preview[:1000]}
+Trích 1200 ký tự đầu nội dung:
+{preview[:1200]}
 """
 
         try:
             logger.info(f"Đang gọi {self.model} qua Ollama để phân tích: {name}")
-            response = self.client.chat(
+            response = await self.client.chat(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 options={"temperature": 0.0},

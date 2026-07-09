@@ -7,6 +7,7 @@ from typing import List
 from loguru import logger
 from ..models import DocumentDTO
 from ..taxonomy import DOC_GROUP_TO_ZONE
+from ..enricher.validator import Validator
 
 class LocalExporter:
     def __init__(self, export_dir: str = "data/export/kho-tai-lieu"):
@@ -48,9 +49,18 @@ class LocalExporter:
         return f"DOC-{lv2}-{age}-{nhom}-{seq}"
 
     def export(self, doc: DocumentDTO) -> bool:
-        """Lưu file vào đúng cấu trúc và ghi manifest"""
+        """Lưu file vào đúng cấu trúc và ghi manifest.
+        
+        Gọi validate_metadata() trước export để đảm bảo metadata sạch.
+        """
         try:
             meta = doc.metadata
+            
+            # Validate lại metadata trước khi export (sửa lỗi: trước đây không validate lại)
+            v = Validator()
+            if not doc.need_manual and not v.validate_metadata(meta):
+                logger.warning(f"Export: metadata không hợp lệ, gắn need_manual: {meta.name}")
+                doc.need_manual = True
             
             # Sinh mã nếu chưa có
             if not doc.doc_code and not doc.need_manual:

@@ -2,7 +2,7 @@
 validator.py — Kiểm soát chất lượng tài liệu trước khi export.
 
 Checklist theo Plan § 2.6 / § 3.2:
-- File .md: tồn tại, > 500 ký tự, < 5MB
+- File .md: tồn tại, > 500 ký tự, < 5MB, chất lượng nội dung
 - Metadata: đủ 4 chiều, các giá trị thuộc danh mục chuẩn IruKa
 - Các giá trị lạ (không thuộc taxonomy) → tự động lọc bỏ (không block)
 """
@@ -32,6 +32,7 @@ class Validator:
 
     def validate_file(self, md_path: Optional[str]) -> bool:
         """Kiểm tra file .md tồn tại, đủ độ dài và không vượt kích thước.
+        Kiểm tra thêm chất lượng nội dung (tỷ lệ chữ/số).
 
         Args:
             md_path: Đường dẫn tới file Markdown đã convert.
@@ -58,6 +59,16 @@ class Validator:
             if len(content) < self.min_chars:
                 logger.warning(
                     f"File quá ngắn (rác?): {md_path} ({len(content)} ký tự < {self.min_chars})"
+                )
+                return False
+
+            # Kiểm tra chất lượng nội dung: ít nhất 30% ký tự là chữ cái hoặc số
+            # (tránh file toàn dấu cách / ký tự đặc biệt)
+            alpha_count = sum(c.isalpha() or c.isdigit() for c in content)
+            if len(content) > 0 and (alpha_count / len(content)) < 0.3:
+                logger.warning(
+                    f"File chất lượng thấp (rác?): {md_path} "
+                    f"(chỉ {alpha_count}/{len(content)} = {alpha_count/len(content)*100:.0f}% là chữ/số)"
                 )
                 return False
 

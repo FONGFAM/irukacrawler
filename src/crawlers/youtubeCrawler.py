@@ -4,6 +4,9 @@ from urllib.parse import urlparse, parse_qs
 from loguru import logger
 import hashlib
 from pathlib import Path
+import httpx
+from bs4 import BeautifulSoup
+import re
 
 try:
     # pyrefly: ignore [missing-import]
@@ -25,6 +28,23 @@ class YouTubeCrawler:
             return parsed.path[1:]
         return None
 
+    async def _get_video_title(self, url: str) -> str:
+        """Cào HTML của trang YouTube để lấy thẻ <title>"""
+        try:
+            async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+                resp = await client.get(url)
+                soup = BeautifulSoup(resp.text, 'html.parser')
+                title_tag = soup.find('title')
+                if title_tag:
+                    title = title_tag.text.replace("- YouTube", "").strip()
+                    # Xoá các ký tự không hợp lệ cho file
+                    title = re.sub(r'[\\/*?:"<>|]', "", title).strip()
+                    return title if title else hashlib.sha256(url.encode()).hexdigest()[:16]
+        except Exception as e:
+            logger.warning(f"Không thể lấy tiêu đề từ {url}: {e}")
+            
+        return hashlib.sha256(url.encode()).hexdigest()[:16]
+
     async def download_file(self, url: str) -> Optional[str]:
         """Cào Transcript của video YouTube thay vì tải video"""
         if YouTubeTranscriptApi is None:
@@ -37,19 +57,39 @@ class YouTubeCrawler:
             return None
             
         try:
-            logger.info(f"Đang cào Transcript cho video {video_id}...")
-            # Lấy transcript tiếng Việt hoặc tự động dịch sang tiếng Việt
-            transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['vi'])
+            title = await self._get_video_title(url)
+            logger.info(f"Đang cào Transcript cho video: {title} ({video_id})...")
+            
+            # Lấy danh sách phụ đề
+            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+            
+            try:
+                # Ưu tiên lấy phụ đề tiếng Việt nếu có (thủ công hoặc tự động)
+                transcript_obj = transcript_list.find_transcript(['vi'])
+            except:
+                # Nếu không có tiếng Việt, lấy cái đầu tiên tìm được và tự động dịch sang tiếng Việt
+                transcripts_available = list(transcript_list)
+                if not transcripts_available:
+                    raise Exception("Video không có bất kỳ phụ đề nào.")
+                transcript_obj = transcripts_available[0].translate('vi')
+                
+            transcript_data = transcript_obj.fetch()
             
             # Nối text lại
-            full_text = " ".join([t['text'] for t in transcript])
+            full_text = " ".join([t['text'] for t in transcript_data])
             
-            # Lưu file markdown (coi như raw text)
-            url_hash = hashlib.sha256(url.encode()).hexdigest()[:16]
-            file_path = self.output_dir / f"{url_hash}.md"
+            # Đảm bảo tên file an toàn
+            safe_title = title[:150] # Tránh tên file quá dài
+            file_path = self.output_dir / f"{safe_title}.md"
+            
+            # Chống trùng lặp tên file
+            counter = 1
+            while file_path.exists():
+                file_path = self.output_dir / f"{safe_title} ({counter}).md"
+                counter += 1
             
             with open(file_path, "w", encoding="utf-8") as f:
-                f.write(f"# YouTube Transcript\nURL: {url}\n\n{full_text}")
+                f.write(f"# {title}\nURL: {url}\n\n{full_text}")
                 
             logger.info(f"Tải transcript thành công: {file_path}")
             return str(file_path)

@@ -29,12 +29,18 @@ class DocumentMetadata(BaseModel):
     license: str = Field("public-web")
 
     def is_valid(self) -> bool:
-        """Kiểm tra xem đã đủ 4 chiều phân loại chưa"""
+        """Kiểm tra xem đã đủ 4 chiều phân loại chưa.
+        Đối với Pháp lý (PL) và Nghiên cứu (NC), có thể không cần age_bands hoặc linh_vucs."""
+        if not self.doc_type or self.source_tier not in [1, 2, 3]:
+            return False
+            
+        group = DOC_TYPE_TO_GROUP.get(self.doc_type, "")
+        if group in ["PL", "NC"]:
+            return True
+            
         return all([
             len(self.linh_vucs) > 0,
             len(self.age_bands) > 0,
-            bool(self.doc_type),
-            self.source_tier in [1, 2, 3]
         ])
 
     @model_validator(mode='after')
