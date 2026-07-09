@@ -1,7 +1,8 @@
 # pyrefly: ignore [missing-import]
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing import List, Optional
 from datetime import datetime
+from src.taxonomy import DOC_TYPE_TO_GROUP
 
 class DocumentMetadata(BaseModel):
     name: str = Field(..., description="Tiêu đề tài liệu")
@@ -36,6 +37,13 @@ class DocumentMetadata(BaseModel):
             self.source_tier in [1, 2, 3]
         ])
 
+    @model_validator(mode='after')
+    def infer_doc_group(self) -> 'DocumentMetadata':
+        """Tự động suy doc_group từ doc_type nếu chưa được gán."""
+        if self.doc_type and not self.doc_group:
+            self.doc_group = DOC_TYPE_TO_GROUP.get(self.doc_type, "")
+        return self
+
 class DocumentDTO(BaseModel):
     metadata: DocumentMetadata
     raw_file_path: Optional[str] = None
@@ -58,6 +66,5 @@ class DocumentDTO(BaseModel):
             else:
                 yaml_lines.append(f"{key}: {value}")
         yaml_lines.append("---")
-        
         frontmatter = "\n".join(yaml_lines)
         return f"{frontmatter}\n\n{content}"

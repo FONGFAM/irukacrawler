@@ -6,6 +6,7 @@ from typing import List
 # pyrefly: ignore [missing-import]
 from loguru import logger
 from ..models import DocumentDTO
+from ..taxonomy import DOC_GROUP_TO_ZONE
 
 class LocalExporter:
     def __init__(self, export_dir: str = "data/export/kho-tai-lieu"):
@@ -24,16 +25,7 @@ class LocalExporter:
                 ])
 
     def _determine_zone(self, doc_group: str) -> str:
-        zones = {
-            "PL": "01_PL_phap_ly",
-            "SGK": "02_SGK_hoc_lieu",
-            "GT": "03_GT_giao_trinh_truong",
-            "BT": "04_BT_bo_tro_nang_cao",
-            "KN": "05_KN_kinh_nghiem",
-            "NC": "06_NC_nghien_cuu",
-            "MD": "07_MD_media"
-        }
-        return zones.get(doc_group.upper(), "00_Khac")
+        return DOC_GROUP_TO_ZONE.get(doc_group.upper(), "00_Khac")
 
     def _generate_doc_code(self, meta) -> str:
         """Sinh mã tài liệu (VD: DOC-NN-56-SGK-0001)"""

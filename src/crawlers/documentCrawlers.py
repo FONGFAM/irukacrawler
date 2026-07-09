@@ -5,6 +5,7 @@ Tuân thủ: robots.txt, Rate limit (1 req/sec), Dedup (SHA-256)
 """
 import asyncio
 import hashlib
+import json
 import urllib.robotparser
 from pathlib import Path
 from typing import Optional
@@ -16,8 +17,11 @@ from urllib.parse import urlparse
 import os
 # pyrefly: ignore [missing-import]
 from dotenv import load_dotenv
+# pyrefly: ignore [missing-import]
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 load_dotenv()
+
 
 USER_AGENT = os.getenv("USER_AGENT", "IruKa-Educational-Crawler/1.0 (contact: mr.dao@irukaedu.vn)")
 MAX_REQUESTS_PER_SECOND = float(os.getenv("MAX_REQUESTS_PER_SECOND", "1.0"))
@@ -45,6 +49,17 @@ class BaseCrawler:
             follow_redirects=True
         )
 
+        # File DB lưu các URL đã tải thành công (Dedup Cấp 2)
+        self.crawled_urls_file = self.output_dir.parent / "crawled_urls.json"
+        self.crawled_urls: set = set()
+        if self.crawled_urls_file.exists():
+            try:
+                with open(self.crawled_urls_file, "r", encoding="utf-8") as f:
+                    self.crawled_urls = set(json.load(f))
+            except Exception as e:
+                logger.warning(f"Lỗi khi đọc file crawled_urls.json: {e}")
+
+
     # ─────────────────────────────────────────────
     # robots.txt check (với cache theo domain)
     # ─────────────────────────────────────────────
@@ -61,9 +76,7 @@ class BaseCrawler:
             except Exception as e:
                 logger.warning(f"Không lấy được robots.txt từ {domain}: {e}")
             self._robots_cache[domain] = rp
-
         return self._robots_cache[domain].can_fetch(USER_AGENT, url)
-
     # ─────────────────────────────────────────────
     # Rate limit theo domain
     # ─────────────────────────────────────────────
@@ -142,8 +155,20 @@ class BaseCrawler:
         with open(file_path, "wb") as f:
             f.write(content)
 
+        # Cập nhật danh sách URL đã cào thành công
+        self.crawled_urls.add(url)
+        self._save_crawled_urls()
+
         logger.success(f"Đã lưu: {file_path}")
         return str(file_path)
+
+    def _save_crawled_urls(self):
+        """Ghi danh sách URL đã cào vào file JSON để dedup lần chạy sau."""
+        try:
+            with open(self.crawled_urls_file, "w", encoding="utf-8") as f:
+                json.dump(list(self.crawled_urls), f, ensure_ascii=False, indent=4)
+        except Exception as e:
+            logger.warning(f"Lỗi khi lưu crawled_urls.json: {e}")
 
     async def close(self):
         await self.client.aclose()
