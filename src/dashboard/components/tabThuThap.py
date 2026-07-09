@@ -90,6 +90,7 @@ def render_tab_thu_thap():
                 cac_dong: list[str] = []
                 dem_thanh_cong = 0
                 dem_loi = 0
+                dem_can_duyet = 0
 
                 try:
                     moi_truong = os.environ.copy()
