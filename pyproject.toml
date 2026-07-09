@@ -1,0 +1,30 @@
+[project]
+name = "irukacrawler"
+version = "0.1.0"
+description = "Hệ thống Cào tài liệu tham khảo cho Não AI IruKa"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.27.0",
+    "playwright>=1.44.0",
+    "pymupdf>=1.24.4",
+    "ollama>=0.2.1",
+    "mcp>=1.0.0",
+    "loguru>=0.7.2",
+    "python-dotenv>=1.0.1",
+    "python-docx>=1.1.2",
+    "html2text>=2024.2.26",
+    "beautifulsoup4>=4.12.3",
+    "pydantic>=2.7.4",
+    "youtube-transcript-api>=0.6.2",
+    "streamlit>=1.35.0",
+    "pandas>=2.2.2",
+    "plotly>=5.22.0"
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
