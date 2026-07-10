@@ -1,127 +1,204 @@
 # 🐬 IruKa Crawler — Hệ thống Thu thập Tài liệu Giáo dục Mầm non
 
-IruKa Crawler là một hệ thống thu thập, xử lý và chuẩn hóa tài liệu tự động được thiết kế riêng cho lĩnh vực giáo dục mầm non. Hệ thống đóng vai trò như một "nhà máy" thu thập dữ liệu thô từ Internet, bóc tách nội dung, gán nhãn siêu dữ liệu (metadata) theo chuẩn Taxonomy của IruKa, và xuất ra định dạng Markdown tối ưu hóa cho các hệ thống RAG (Retrieval-Augmented Generation) và AI.
+IruKa Crawler là một hệ thống ETL chuyên biệt, tự động thu thập, xử lý và chuẩn hóa tài liệu cho lĩnh vực giáo dục mầm non. Hệ thống đóng vai trò "nhà máy" thu thập dữ liệu thô từ Internet, bóc tách nội dung, gán nhãn siêu dữ liệu (metadata) theo chuẩn Taxonomy của IruKa, và xuất ra định dạng Markdown tối ưu hóa cho RAG (Retrieval-Augmented Generation).
 
-> **Trạng thái hiện tại:** Phiên bản Demo (Local Standalone)
-> **Mục tiêu:** Tự động hóa quá trình thu thập tài liệu từ web, YouTube, chuyển đổi sang Markdown và gán nhãn thông minh bằng LLM cục bộ.
-
----
-
-## ✨ Tính năng Nổi bật
-
-1. **Thu thập Đa nguồn (Multi-source Crawling)**
-   - Tìm kiếm URL động thông qua **MCP Searcher** (tích hợp API Tavily/Exa).
-   - Tải và xử lý các tệp PDF, DOCX, HTML từ các trang web giáo dục.
-   - Hỗ trợ thu thập phụ đề **YouTube** (`youtube-transcript-api`), tự động dịch sang Tiếng Việt nếu video dùng ngôn ngữ khác.
-   - Khả năng **Dedup (lọc trùng lặp)** tự động dựa trên SHA-256 hash của URL và nội dung.
-
-2. **Xử lý Nội dung Tối ưu cho AI (RAG-ready Conversion)**
-   - Chuyển đổi PDF, DOCX, HTML sang định dạng Markdown chuẩn.
-   - **Tự động đánh dấu trang**: Chèn thẻ `--- Trang N ---` cho PDF (thông qua PyMuPDF) và chèn `--- Phần N ---` sau mỗi 500 từ cho DOCX. Điều này giúp các hệ thống Vector DB và LLM phía sau dễ dàng cắt nhỏ (chunking) nội dung mà không mất ngữ cảnh.
-
-3. **Gán nhãn Siêu dữ liệu Thông minh (Two-tier Metadata Enrichment)**
-   - **Tầng 1 - Heuristic Enrichment**: Áp dụng hệ thống luật (regex/rules) cực nhanh dựa trên tên miền và tiêu đề để tự động gán phân loại (Ví dụ: `moet.gov.vn` → `pl.thong_tu`, `tier 3`).
-   - **Tầng 2 - Local LLM (Ollama)**: Sử dụng mô hình Llama3 chạy cục bộ hoàn toàn miễn phí để đọc hiểu nội dung tài liệu và gán nhãn tự động cho những trường còn thiếu (Lĩnh vực, Độ tuổi, Loại tài liệu).
-
-4. **Kiểm duyệt Chất lượng Chặt chẽ (Strict Validation)**
-   - Kiểm tra định dạng Markdown: Độ dài tệp, tỷ lệ nội dung chữ/số (lọc file rác).
-   - Xác thực metadata bám sát 100% chuẩn **IruKa Taxonomy** (4 chiều).
-   - Các tài liệu không đạt chuẩn sẽ tự động được gán cờ `need_manual=True` để chuyển sang quy trình xét duyệt tay.
-
-5. **Bảng điều khiển Trực quan (Streamlit Dashboard)**
-   - Theo dõi tiến độ thu thập dữ liệu qua log thời gian thực.
-   - Báo cáo thống kê trực quan với biểu đồ (Lĩnh vực, Tier, Độ tuổi).
-   - Giao diện xét duyệt tài liệu dễ sử dụng dành cho Admin.
+> **Trạng thái hiện tại:** G1 — Demo Local Standalone (5/7 bước pipeline)
+> **Mục tiêu G2:** Upload Cloudflare R2 + Bulk-import API → tài liệu vào Xưởng Sản Xuất tự động
 
 ---
 
-## 🏗️ Kiến trúc Hệ thống (Pipeline 7 Bước)
+## ✨ Tính năng
 
-Pipeline hoạt động của hệ thống được chia làm 7 bước chính:
-
-1. **Tìm kiếm & Cào (Crawler)**: `MCPSearcher` tìm kiếm URL -> `BaseCrawler` / `YouTubeCrawler` tải nội dung.
-2. **Chuyển đổi (Converter)**: `DocumentConverter` chuyển tệp gốc sang Markdown (`data/converted/`).
-3. **Làm giàu Dữ liệu (Enricher)**: `HeuristicEnricher` & `LocalLLMEnricher` phân tích tài liệu và xuất ra metadata.
-4. **Kiểm duyệt (Validator)**: Đảm bảo tài liệu đáp ứng Taxonomy và chất lượng nội dung.
-5. **Sinh mã (Doc Coder)**: Tạo mã tài liệu chuẩn `DOC-{LV2}-{age}-{NHOM}-{seq4}`.
-6. **Xuất file (Exporter)**: `LocalExporter` lưu file Markdown kèm YAML Frontmatter vào `data/export/` và cập nhật `manifest.csv`.
-7. **Đẩy lên Cloud & Import (Sẽ làm sau)**: Tích hợp Cloudflare R2 và Bulk-import API.
-
-*Để xem chi tiết hơn về luồng kiến trúc, vui lòng tham khảo file `workflows_and_diagrams.md`.*
+| # | Tính năng | Trạng thái |
+|---|---|---|
+| 1 | **Thu thập đa nguồn** — PDF, DOCX, HTML từ web giáo dục qua Tavily/Exa | ✅ Hoàn thành |
+| 2 | **YouTube Crawler** — Lấy transcript, tự dịch sang Tiếng Việt | ✅ Hoàn thành |
+| 3 | **Dedup thông minh** — SHA-256 URL + lọc manifest.csv hiện có | ✅ Hoàn thành |
+| 4 | **RAG-ready Conversion** — PDF/DOCX/HTML → Markdown chuẩn có đánh trang | ✅ Hoàn thành |
+| 5 | **Heuristic Enrichment** — Bảng quy đổi domain/keyword → 4 chiều metadata | ✅ Hoàn thành |
+| 6 | **Local LLM Enrichment** — Ollama/llama3 phân loại khi heuristic chưa đủ | ✅ Hoàn thành |
+| 7 | **Strict Validation** — Kiểm tra 4 chiều IruKa Taxonomy + chất lượng file | ✅ Hoàn thành |
+| 8 | **Streamlit Dashboard** — 4 tab: Thu thập · Thống kê · Danh sách · Xét duyệt | ✅ Hoàn thành |
+| 9 | **Upload Cloudflare R2** — boto3 PUT file theo path chuẩn IruKa | ⏳ G2 |
+| 10 | **Bulk-import API** — POST `/bulk-import` vào Xưởng Sản Xuất be-hub | ⏳ G2 |
+| 11 | **Discord Reporter** — Báo cáo mẻ crawl qua webhook | ⏳ G2 |
+| 12 | **Cron Scheduler** — Tự động chạy định kỳ (arq) | ⏳ G2 |
+| 13 | **OCR** — Tesseract/Google Vision cho SGK scan ảnh | ⏳ G3 |
 
 ---
 
-## 🚀 Hướng dẫn Cài đặt & Chạy thử nghiệm
+## 🏗️ Kiến trúc Pipeline 7 Bước
 
-### 1. Yêu cầu Hệ thống
-- **Python 3.11+**
-- **Ollama** (đã tải model `llama3` hoặc `llama3.1`)
-- Môi trường ảo (Virtual Environment)
-
-### 2. Cài đặt
-
-```bash
-# Clone source code và truy cập thư mục
-git clone <repo_url> irukacrawler
-cd irukacrawler
-
-# Khởi tạo môi trường ảo và cài đặt thư viện
-python -m venv venv
-source venv/bin/activate  # Trên Windows: venv\Scripts\activate
-pip install -r requirements.txt
+```
+[Queries] → MCPSearcher → DEDUP → Crawler → Converter → Enricher → Validator → Exporter
+                                                                               ↓
+                                                              [G2] R2Uploader → IruKaIngester
+                                                                               ↓
+                                                                    Xưởng Sản Xuất (cho_duyet)
 ```
 
-### 3. Vận hành
+| Bước | Module | Mô tả |
+|---|---|---|
+| 1 | `MCPSearcher` + `BaseCrawler` / `YouTubeCrawler` | Tìm kiếm URL → tải file → `data/raw/` |
+| 2 | `DocumentConverter` | PDF/DOCX/HTML → Markdown có đánh trang → `data/converted/` |
+| 3 | `HeuristicEnricher` → `LocalLLMEnricher` | Suy metadata 2 tầng (rules → Ollama) |
+| 4 | `Validator` | Kiểm tra 4 chiều IruKa Taxonomy + chất lượng file |
+| 5 | `LocalExporter` | Sinh `doc_code`, ghi YAML Frontmatter, cập nhật `manifest.csv` |
+| 6 | `R2Uploader` *(G2)* | Upload file lên Cloudflare R2 |
+| 7 | `IruKaIngester` *(G2)* | POST `/bulk-import` → Xưởng Sản Xuất |
 
-**Cách 1: Khởi động Giao diện Dashboard (Khuyên dùng)**
-Sử dụng giao diện Streamlit để thao tác và theo dõi thống kê trực quan.
+> 📖 Chi tiết đầy đủ: [`docs/architecture_and_workflows.md`](docs/architecture_and_workflows.md)
+
+---
+
+## 🚀 Cài đặt & Chạy
+
+### Yêu cầu
+
+- Python **3.11+**
+- [**Ollama**](https://ollama.com) đã cài và chạy với model `llama3` hoặc `llama3.1`
+- API key: **Tavily** (`TAVILY_API_KEY`) hoặc **Exa** (`EXA_API_KEY`)
+
+### Cài đặt
+
+```bash
+# 1. Clone repo
+git clone git@github.com:iruka-edu/data-cur.git irukacrawler
+cd irukacrawler
+
+# 2. Tạo môi trường ảo
+python -m venv venv
+source venv/bin/activate        # Windows: venv\Scripts\activate
+
+# 3. Cài thư viện
+pip install -e .
+
+# 4. Cấu hình biến môi trường
+cp .env.example .env            # Điền API keys vào .env
+```
+
+### Biến môi trường cần thiết (`.env`)
+
+```bash
+TAVILY_API_KEY=tvly-xxx         # Hoặc EXA_API_KEY=exa-xxx
+OLLAMA_HOST=http://localhost:11434
+OLLAMA_MODEL=llama3
+MAX_REQUESTS_PER_SECOND=1.0
+```
+
+> 📖 Danh sách đầy đủ biến môi trường: [`docs/architecture_and_workflows.md#phụ-lục`](docs/architecture_and_workflows.md)
+
+### Chạy
+
+**Cách 1 — Dashboard (khuyên dùng)**
+
 ```bash
 streamlit run src/dashboard/app.py
 ```
 
-**Cách 2: Chạy trực tiếp qua CLI**
-Bạn có thể chạy luồng thu thập tài liệu thông qua Command Line.
+Mở trình duyệt tại `http://localhost:8501`. Giao diện có 4 tab: **Tìm & Thu thập · Thống kê · Danh sách · Xét duyệt**.
+
+**Cách 2 — CLI**
+
 ```bash
-python -m src.main --queries "bài giảng điện tử mầm non lớp 5 tuổi" --provider tavily --limit 10
+python -m src.main \
+  --queries "bài giảng toán mầm non 5 tuổi, giáo án chữ cái lớp lá" \
+  --provider tavily \
+  --limit 10 \
+  --semaphore 5
+```
+
+| Tham số | Mặc định | Mô tả |
+|---|---|---|
+| `--queries` | *(bắt buộc)* | Từ khóa tìm kiếm, cách nhau bằng dấu phẩy |
+| `--provider` | `tavily` | `tavily` hoặc `exa` |
+| `--limit` | `5` | Số URL trả về mỗi từ khóa |
+| `--semaphore` | `5` | Số URL xử lý song song |
+
+**Chạy Tests**
+
+```bash
+pytest tests/ -v
+# Expected: 110 passed, 2 failed (lỗi taxonomy g1 — xem docs/bao_cao_nghiem_thu.md)
 ```
 
 ---
 
-## 📂 Cấu trúc Thư mục Chính
+## 📂 Cấu trúc Thư mục
 
 ```text
 irukacrawler/
 ├── src/
-│   ├── crawlers/          # Các module thu thập (Base, YouTube, MetadataMapper)
-│   ├── converters/        # Module chuyển đổi PDF/DOCX sang Markdown
-│   ├── enricher/          # Module xử lý LLM, Heuristic, Validator
-│   ├── searcher/          # Tích hợp MCP Tavily/Exa để tìm kiếm
-│   ├── exporter/          # Module đóng gói, xuất file và ghi manifest
-│   ├── dashboard/         # Mã nguồn UI Streamlit
-│   ├── models.py          # Khai báo các Dataclass (DocumentDTO, DocumentMetadata)
-│   ├── taxonomy.py        # Định nghĩa chuẩn phân loại IruKa (Single Source of Truth)
-│   └── main.py            # Entry point kết nối toàn bộ Pipeline
+│   ├── models.py              # DocumentDTO + DocumentMetadata (Pydantic)
+│   ├── taxonomy.py            # 🔑 Single Source of Truth — chuẩn phân loại IruKa
+│   ├── main.py                # CLI entry + async pipeline orchestrator
+│   ├── crawlers/
+│   │   ├── documentCrawlers.py    # BaseCrawler: PDF/DOCX/HTML
+│   │   ├── youtubeCrawler.py      # YouTubeCrawler: transcript
+│   │   └── siteMetadataMapper.py  # Domain → metadata override
+│   ├── converters/
+│   │   └── documentConverter.py  # PDF/DOCX/HTML → Markdown
+│   ├── enricher/
+│   │   ├── heuristicEnricher.py  # Bảng quy đổi §5.6
+│   │   ├── localLLMEnricher.py   # Ollama/llama3 enrichment
+│   │   └── validator.py          # Kiểm tra 4 chiều IruKa Taxonomy
+│   ├── exporter/
+│   │   └── LocalExporter.py      # Sinh doc_code, YAML frontmatter, manifest.csv
+│   ├── uploader/              # ⏳ G2 — chưa implement
+│   │   ├── r2_uploader.py        # (placeholder) boto3 → Cloudflare R2
+│   │   └── iruka_ingester.py     # (placeholder) POST /bulk-import
+│   ├── searcher/
+│   │   └── MCPSearcher.py        # Tavily / Exa search API
+│   └── dashboard/
+│       ├── app.py                # Streamlit entry (4 pages)
+│       ├── utils.py              # Đọc manifest, gọi subprocess pipeline
+│       └── components/
+│           ├── tabThuThap.py     # Tab: Tìm & Thu thập
+│           ├── tabThongKe.py     # Tab: Thống kê (Plotly charts)
+│           ├── tabDanhSach.py    # Tab: Danh sách tài liệu
+│           └── tabXetDuyet.py    # Tab: Xét duyệt (need_manual)
 ├── data/
-│   ├── raw/               # Tệp thô vừa tải về
-│   ├── converted/         # Tệp Markdown tạm trước khi gán nhãn
-│   └── export/            # Tệp Markdown hoàn chỉnh kèm manifest.csv
-├── tests/                 # Thư mục unit test
-└── logs/                  # Chứa file log chi tiết theo ngày
+│   ├── raw/                   # File gốc: {sha256}.{pdf|docx|html}
+│   ├── converted/             # Markdown tạm: {sha256}.md
+│   └── export/                # Markdown hoàn chỉnh + manifest.csv
+├── docs/
+│   ├── architecture_and_workflows.md   # Kiến trúc & luồng hoạt động chi tiết
+│   └── bao_cao_nghiem_thu.md           # Báo cáo nghiệm thu G1
+├── tests/                     # 6 file test, 112 test cases
+├── logs/                      # crawler_{YYYY-MM-DD}.log (loguru)
+├── Dockerfile
+├── docker-compose.yml
+└── pyproject.toml
 ```
 
 ---
 
-## 🛠️ Trạng thái Dự án (Nghiệm thu Local Demo)
+## 📊 Trạng thái Dự án
 
-Hệ thống đã hoàn thành xuất sắc các chỉ tiêu trong giai đoạn Demo:
-- **Tích hợp thành công 11/18 modules cốt lõi** (các module rớt lại là các tính năng Cloud Production).
-- **Pass 110/112 tests pipeline**.
-- **Chuyển đổi văn bản thông minh**: Hỗ trợ RAG Chunking qua kỹ thuật đánh dấu trang cho PDF và Word.
-- **Tiết kiệm chi phí**: Thành công bypass API trả phí của OpenAI bằng mô hình Local LLM.
+**G1 — Local Demo** *(hiện tại)*
 
-### Lộ trình Phát triển Tiếp theo (Production Phase)
-- Bổ sung module **Uploader** đẩy file lên Cloudflare R2 (Yêu cầu API Keys).
-- Viết script **IruKa Ingester** để gọi API Bulk-import.
-- Tích hợp **Discord Reporter** gửi thông báo về Webhook sau mỗi mẻ crawl.
-- Áp dụng **OCR** (Tesseract / Google Vision) để bóc tách tài liệu sách giáo khoa bị scan ảnh.
-- Khởi tạo **Scheduled Tasks** (Cronjob) tự động chạy định kỳ.
+- ✅ 110/112 tests pass (98.2%)
+- ✅ 11/18 modules cốt lõi hoàn thành
+- ✅ Pipeline 5/7 bước chạy end-to-end
+- ✅ Chi phí LLM: **$0** (Ollama local thay OpenAI)
+- ⏳ Bước 6 (R2 Upload) và Bước 7 (Bulk-import API) — dành cho G2
+
+**Lộ trình**
+
+| Giai đoạn | Mục tiêu | Mốc |
+|---|---|---|
+| **G1** *(hiện tại)* | Demo end-to-end local, pipeline 5/7 bước | Hoàn thành |
+| **G2** *(Tháng 8/2026)* | Upload R2 + API, Discord, Cron, ≥ 300 tài liệu/tuần | Tuần 5–8 |
+| **G3** *(Tháng 9/2026)* | OCR, Embedding Dedup, ≥ 500 tài liệu/tuần | Tuần 9–12 |
+
+> 📖 Báo cáo chi tiết: [`docs/bao_cao_nghiem_thu.md`](docs/bao_cao_nghiem_thu.md)
+
+---
+
+## 📚 Tài liệu
+
+| File | Nội dung |
+|---|---|
+| [`docs/architecture_and_workflows.md`](docs/architecture_and_workflows.md) | Kiến trúc hệ thống, sơ đồ pipeline, luồng dữ liệu, chuẩn Taxonomy |
+| [`docs/bao_cao_nghiem_thu.md`](docs/bao_cao_nghiem_thu.md) | Báo cáo nghiệm thu G1 — so sánh yêu cầu vs thực tế |
+| [`08-07-2026__dev-ops__plan-he-thong-cao-tai-lieu-tham-khao.md`](08-07-2026__dev-ops__plan-he-thong-cao-tai-lieu-tham-khao.md) | Kế hoạch dự án gốc (Mr. Đào) |
