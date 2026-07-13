@@ -21,12 +21,15 @@ from src.taxonomy import (
     VALID_AGE_BANDS,
     VALID_DOC_TYPES,
     VALID_SUB_DOMAIN_IDS,
+    VALID_SKILL_IDS,
+    VALID_SERIES_CODES
 )
 
-# Chuỗi danh sách dùng trong prompt — build 1 lần lúc import
 _LINH_VUCS_STR = ", ".join(sorted(VALID_LINH_VUCS))
 _AGE_BANDS_STR = ", ".join(sorted(VALID_AGE_BANDS))
 _SUB_DOMAINS_STR = ", ".join(sorted(VALID_SUB_DOMAIN_IDS))
+_SKILL_IDS_STR = ", ".join(sorted(VALID_SKILL_IDS))
+_SERIES_CODES_STR = ", ".join(sorted(VALID_SERIES_CODES))
 # Loại bỏ 'khac' khỏi gợi ý (LLM không nên chọn 'khac' nếu có thể)
 _DOC_TYPES_STR = ", ".join(sorted(VALID_DOC_TYPES - {"khac"}))
 
@@ -57,8 +60,10 @@ DANH MỤC HỢP LỆ (chỉ được chọn giá trị trong danh sách, không
 - age_bands: [{_AGE_BANDS_STR}] (Ví dụ: 34 = 3-4 tuổi, 45 = 4-5 tuổi, 56 = 5-6 tuổi, g1_hk1 = Lớp 1 HK1, g1_hk2 = Lớp 1 HK2)
 - doc_type (chọn đúng 1): [{_DOC_TYPES_STR}, khac] 
   + Gợi ý: pl.* (Pháp lý/Thông tư); sgk.* (Sách giáo khoa/Tập tô cho trẻ); gt.giao_an (Giáo án); gt.truong (Giáo trình); bt.bo_tro (Bài tập bổ trợ); bt.truyen_tho (Truyện/Thơ); kn.* (Sáng kiến kinh nghiệm/Mẹo dạy); nc.* (Nghiên cứu/Bài báo/Giáo trình dạy sinh viên/Tập huấn GV).
-  + CHÚ Ý: Nếu tài liệu là của HỌC SINH phổ thông (Lớp 2 đến Lớp 12, THCS, THPT) thì BẮT BUỘC chọn doc_type là "khac". Nếu là giáo trình đại học/cao đẳng DẠY VỀ MẦM NON thì chọn "nc.nghien_cuu" hoặc "nc.tap_huan".
+  + RÀNG BUỘC NGHIÊM NGẶT: Tuyệt đối không nhầm lẫn giữa cấp học và độ tuổi. Chữ "Lớp 4", "Lớp 5" hoặc "Tiếng Việt 5" là của học sinh tiểu học (9-10 tuổi), KHÔNG PHẢI mầm non (4-5 tuổi). Nếu văn bản nhắc đến "Lớp 2, 3, 4, 5, 6..." hoặc "Tiếng Việt 2, 3, 4, 5...", BẮT BUỘC chọn doc_type là "khac" và để trống toàn bộ mảng age_bands, linh_vucs. Nếu là giáo trình đại học/cao đẳng DẠY VỀ MẦM NON thì chọn "nc.nghien_cuu" hoặc "nc.tap_huan".
 - sub_domain_ids: [{_SUB_DOMAINS_STR}] (Toán: nt.toan, Khoa học: nt.kpkh, XH: nt.kpxh, Đọc/Viết: nn.doc_viet, Nghe/Nói: nn.nghe_noi, Văn học: nn.van_hoc, Vẽ/Nặn: tm.tao_hinh, Nhạc: tm.am_nhac, Thể dục: tc.van_dong)
+- skill_ids: [{_SKILL_IDS_STR}] (Chỉ chọn nếu chắc chắn, có thể bỏ trống)
+- series_code: [{_SERIES_CODES_STR}] (Chỉ chọn nếu có nhắc tên bộ sách, có thể bỏ trống)
 - source_tier: 1 (blog/kinh nghiệm GV), 2 (SGK/giáo trình), 3 (Bộ GD/luật)
 
 Định dạng JSON cần trả về:
@@ -67,6 +72,8 @@ DANH MỤC HỢP LỆ (chỉ được chọn giá trị trong danh sách, không
     "age_bands": ["<từ danh sách>"],
     "doc_type": "<từ danh sách>",
     "sub_domain_ids": ["<từ danh sách>"],
+    "skill_ids": ["<từ danh sách>"],
+    "series_code": "<từ danh sách>",
     "source_tier": <1 hoặc 2 hoặc 3>
 }}
 
@@ -76,6 +83,8 @@ VÍ DỤ TRẢ VỀ:
     "age_bands": ["56"],
     "doc_type": "gt.giao_an",
     "sub_domain_ids": ["nt.toan"],
+    "skill_ids": ["math.sk01"],
+    "series_code": "canh-dieu",
     "source_tier": 1
 }}
 

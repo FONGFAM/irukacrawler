@@ -35,7 +35,7 @@ class MCPSearcher:
             env=os.environ.copy()
         )
         
-        urls = []
+        raw_results = []
         try:
             async with stdio_client(server_params) as (read, write):
                 async with ClientSession(read, write) as session:
@@ -62,24 +62,43 @@ class MCPSearcher:
                             
                             # Phân tích kết quả của Tavily
                             if isinstance(data, dict) and "results" in data:
-                                urls = [item.get("url") for item in data["results"] if item.get("url")]
+                                for item in data["results"]:
+                                    if item.get("url"):
+                                        raw_results.append({
+                                            "url": item.get("url"),
+                                            "title": item.get("title") or item.get("heading") or ""
+                                        })
                             # Phân tích kết quả của Exa
                             elif isinstance(data, list):
-                                urls = [item.get("url") for item in data if isinstance(item, dict) and item.get("url")]
+                                for item in data:
+                                    if isinstance(item, dict) and item.get("url"):
+                                        raw_results.append({
+                                            "url": item.get("url"),
+                                            "title": item.get("title") or item.get("heading") or ""
+                                        })
                             else:
                                 logger.warning("Dữ liệu JSON không chứa cấu trúc mong muốn. Fallback sang Regex...")
                                 raise ValueError("Invalid JSON format")
                         except Exception as e:
-                            logger.info(f"Không thể parse JSON từ MCP (lý do: {e}). Đang dùng Regex để bóc tách URL từ chuỗi text...")
+                            logger.debug(f"Không thể parse JSON từ MCP (lý do: {e}). Đang dùng Regex để bóc tách URL từ chuỗi text...")
                             # Fallback: dùng Regex trích xuất toàn bộ URL từ text trả về
+                            # Tránh match các kí tự kết thúc ko hợp lệ
                             found_urls = re.findall(r'https?://[^\s)"]+', text_content)
                             if found_urls:
-                                urls = list(set(found_urls))
+                                for u in list(set(found_urls)):
+                                    # Thử bóc tách một tiêu đề thô nếu có xung quanh URL
+                                    raw_results.append({"url": u, "title": ""})
                             else:
                                 logger.error(f"Không tìm thấy URL nào trong nội dung trả về: {text_content[:200]}")
                             
         except Exception as e:
             logger.error(f"Lỗi khi chạy MCP Server ({self.provider}): {e}")
             
-        logger.success(f"Tìm thấy {len(urls)} URLs qua {self.provider}")
+        # Lọc kết quả qua ResultFilter
+        from src.searcher.resultFilter import ResultFilter
+        rf = ResultFilter()
+        filtered = rf.filter(raw_results)
+        urls = [item["url"] for item in filtered]
+        
+        logger.success(f"Tìm thấy {len(urls)}/{len(raw_results)} URLs hợp lệ qua {self.provider}")
         return urls

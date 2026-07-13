@@ -4,7 +4,43 @@ import subprocess
 from pathlib import Path
 from src.dashboard.utils import PYTHON_BIN, hien_thi_log, tai_du_lieu
 
+# ── Preset Từ Khoá (Ma trận ưu tiên) ─────────────────────────
+PRESET_DOT_1 = [
+    "giáo án làm quen với toán mầm non 5-6 tuổi",
+    "bài giảng số đếm toán lớp lá",
+    "skkn phát triển nhận thức toán trẻ 5 tuổi",
+    "giáo án làm quen chữ cái tiếng việt lớp lá",
+    "skkn phát triển ngôn ngữ chữ cái 5-6 tuổi",
+    "giáo án chuẩn bị cho trẻ vào lớp 1 môn toán",
+    "tài liệu luyện viết chữ cái tiếng việt lớp 1",
+    "bài tập toán tư duy lớp 1"
+]
+
+PRESET_DOT_2 = [
+    "giáo án làm quen với toán mầm non 4-5 tuổi",
+    "bài giảng toán nhận biết hình khối lớp chồi",
+    "giáo án toán nhận biết to nhỏ 3-4 tuổi",
+    "giáo án phát triển ngôn ngữ trẻ 4-5 tuổi",
+    "bài giảng truyện kể mầm non lớp chồi",
+    "skkn phát triển ngôn ngữ mầm non 3-4 tuổi"
+]
+
+PRESET_DOT_3 = [
+    "giáo án tạo hình mầm non 5-6 tuổi",
+    "bài giảng âm nhạc mầm non",
+    "kế hoạch giáo dục thể chất mầm non",
+    "giáo án khám phá khoa học xã hội mầm non",
+    "skkn âm nhạc lớp lá",
+    "tài liệu mĩ thuật mầm non"
+]
+
+def apply_preset(preset_list):
+    st.session_state.tu_khoa_input = "\n".join(preset_list)
+
 def render_tab_thu_thap():
+    if "tu_khoa_input" not in st.session_state:
+        st.session_state.tu_khoa_input = "giáo án kể chuyện mầm non 5-6 tuổi"
+        
     st.subheader("Nhập từ khoá để thu thập tài liệu")
 
     # ── Hướng dẫn nhanh (thu gọn) ───────────────────────────
@@ -22,14 +58,24 @@ def render_tab_thu_thap():
 - Tài liệu cần duyệt thêm sẽ được gắn cờ ⚠️ để người quản trị xem lại.
 """)
 
+    # ── Chọn Chiến dịch nhanh ────────────────────────────────
+    st.markdown("**🎯 Chiến dịch ưu tiên (Theo kế hoạch hệ thống):**")
+    col_p1, col_p2, col_p3 = st.columns(3)
+    with col_p1:
+        st.button("🔥 Đợt 1 (Toán & TV Lá, Lớp 1)", on_click=apply_preset, args=(PRESET_DOT_1,), use_container_width=True, help="Đặc biệt ưu tiên: Toán và Làm quen chữ cái cho trẻ 5-6 tuổi chuẩn bị vào lớp 1.")
+    with col_p2:
+        st.button("⭐ Đợt 2 (Toán & TV 3-5 tuổi)", on_click=apply_preset, args=(PRESET_DOT_2,), use_container_width=True, help="Ưu tiên cao: Toán và Ngôn ngữ cho trẻ 3-5 tuổi.")
+    with col_p3:
+        st.button("Đợt 3 (Các môn khác)", on_click=apply_preset, args=(PRESET_DOT_3,), use_container_width=True, help="Ưu tiên mở rộng: Tạo hình, Âm nhạc, Thể chất, Khám phá.")
+
     # ── Form nhập liệu ───────────────────────────────────────
     with st.form("form_tim_kiem", border=True):
         tu_khoa = st.text_area(
-            "Từ khoá tìm kiếm",
-            value="giáo án kể chuyện mầm non 5-6 tuổi",
-            height=100,
-            placeholder="Mỗi dòng một chủ đề, ví dụ:\ngiáo án Toán mầm non\nSKKN tạo hình trẻ 4 tuổi\nchương trình GDMN Bộ GD",
-            help="Hệ thống sẽ tìm kiếm tài liệu PDF/DOCX liên quan trên internet cho từng chủ đề.",
+            "Từ khoá tìm kiếm (Mỗi dòng một chủ đề)",
+            key="tu_khoa_input",
+            height=180,
+            placeholder="Mỗi dòng một chủ đề, ví dụ:\ngiáo án Toán mầm non\nSKKN tạo hình trẻ 4 tuổi",
+            help="Hệ thống sẽ tìm kiếm tài liệu trên internet cho từng chủ đề. Bạn có thể tự gõ hoặc bấm các chiến dịch bên trên để điền tự động.",
         )
 
         col_cfg1, col_cfg2, col_cfg3 = st.columns(3)
@@ -84,14 +130,21 @@ def render_tab_thu_thap():
                 expanded=True,
             ) as hop_trang_thai:
 
-                st.write(f":material/search: Từ khoá: {', '.join(danh_sach_tu_khoa)}")
-                st.write(f":material/settings: Nguồn: `{nguon}` — {so_ket_qua} kết quả/chủ đề — {song_song} luồng song song")
+                col_st1, col_st2 = st.columns([3, 1])
+                with col_st1:
+                    st.write(f":material/search: Từ khoá: {', '.join(danh_sach_tu_khoa)}")
+                    st.write(f":material/settings: Nguồn: `{nguon}` — {so_ket_qua} kết quả/chủ đề — {song_song} luồng song song")
+                with col_st2:
+                    # Nút bấm này nếu được click sẽ buộc Streamlit re-run script, 
+                    # ngắt thread hiện tại và kích hoạt khối `finally` bên dưới để kill process.
+                    st.button("⏹️ Dừng thu thập", key="btn_stop_crawler", type="primary", use_container_width=True)
 
                 cac_dong: list[str] = []
                 dem_thanh_cong = 0
                 dem_loi = 0
                 dem_can_duyet = 0
 
+                tien_trinh = None
                 try:
                     moi_truong = os.environ.copy()
                     moi_truong["PYTHONPATH"] = str(Path.cwd())
@@ -107,10 +160,11 @@ def render_tab_thu_thap():
                         cwd=str(Path.cwd()),
                     )
 
-                    for dong_raw in tien_trinh.stdout:  # type: ignore[union-attr]
-                        dong = dong_raw.rstrip()
-                        cac_dong.append(dong)
-                        st.session_state.log_chay = cac_dong.copy()
+                    try:
+                        for dong_raw in tien_trinh.stdout:  # type: ignore[union-attr]
+                            dong = dong_raw.rstrip()
+                            cac_dong.append(dong)
+                            st.session_state.log_chay = cac_dong.copy()
 
                         if "| SUCCESS" in dong:
                             dem_thanh_cong += 1
@@ -127,12 +181,21 @@ def render_tab_thu_thap():
                             except:
                                 pass
 
-                        # Cập nhật bảng log theo thời gian thực
-                        vung_log.empty()
-                        with vung_log:
-                            hien_thi_log(cac_dong)
+                            # Cập nhật bảng log theo thời gian thực
+                            vung_log.empty()
+                            with vung_log:
+                                hien_thi_log(cac_dong)
 
-                    tien_trinh.wait()
+                        tien_trinh.wait()
+                    finally:
+                        # Đảm bảo process bị kill nếu user bấm nút Dừng hoặc rời khỏi trang
+                        if tien_trinh and tien_trinh.poll() is None:
+                            tien_trinh.terminate()
+                            tien_trinh.wait()
+                            cac_dong.append("⚠️ TIẾN TRÌNH ĐÃ BỊ HỦY BỞI NGƯỜI DÙNG.")
+                            st.session_state.log_chay = cac_dong.copy()
+                            st.session_state.trang_thai = "loi"
+
                     ma_thoat = tien_trinh.returncode
 
                     st.session_state.trang_thai = "xong" if ma_thoat == 0 else "loi"

@@ -14,6 +14,10 @@ from src.crawlers.siteMetadataMapper import get_metadata_override, get_site_name
 # pyrefly: ignore [missing-import]
 from src.searcher.MCPSearcher import MCPSearcher
 # pyrefly: ignore [missing-import]
+from src.searcher.queryExpander import expand_query
+# pyrefly: ignore [missing-import]
+from src.searcher.domainBlacklist import DomainBlacklist
+# pyrefly: ignore [missing-import]
 from src.converters.documentConverter import DocumentConverter
 # pyrefly: ignore [missing-import]
 from src.enricher.heuristicEnricher import HeuristicEnricher
@@ -32,7 +36,7 @@ logs_dir.mkdir(exist_ok=True)
 log_file_path = logs_dir / f"crawler_{datetime.now().strftime('%Y-%m-%d')}.log"
 logger.add(log_file_path, rotation="10 MB", retention="7 days", encoding="utf-8", level="DEBUG")
 
-async def run_pipeline(queries: List[str], provider: str, limit: int, semaphore: int = 5):
+async def run_pipeline(queries: List[str], provider: str, limit: int, semaphore: int = 5, query_offset: int = 0):
     # Khởi tạo các module
     actual_provider = "exa" if provider == "youtube" else provider
     searcher = MCPSearcher(provider=actual_provider)
@@ -50,13 +54,19 @@ async def run_pipeline(queries: List[str], provider: str, limit: int, semaphore:
     success_count = 0
     fail_count = 0
     
+    # Khởi tạo DomainBlacklist (Hướng 3)
+    domain_bl = DomainBlacklist(threshold=50)
+    
     try:
         all_urls_raw = []
         # Bước 1: Gọi MCP Searcher lấy list URLs
+        # Hướng 1: Mỗi query gốc được expand thành nhiều biến thể
         for query in queries:
-            actual_query = f"{query} site:youtube.com" if provider == "youtube" else query
-            urls = await searcher.search(actual_query, limit=limit)
-            all_urls_raw.extend(urls)
+            base_query = f"{query} site:youtube.com" if provider == "youtube" else query
+            expanded_queries = expand_query(base_query, max_variants=4, offset=query_offset)
+            for eq in expanded_queries:
+                urls = await searcher.search(eq, limit=limit)
+                all_urls_raw.extend(urls)
             
         import pandas as pd
         existing_urls = set()
@@ -67,10 +77,15 @@ async def run_pipeline(queries: List[str], provider: str, limit: int, semaphore:
                     existing_urls = set(df["source_url"].dropna().tolist())
             except Exception:
                 pass
-                
+
+        # Hướng 3: Nạp DomainBlacklist từ manifest
+        domain_bl.load_from_manifest(exporter.manifest_path)
+
         # Loại bỏ các URL trùng lặp (nếu có) hoặc đã từng cào / xử lý thành công
-        all_urls = [u for u in set(all_urls_raw) if u not in existing_urls and u not in crawler.crawled_urls]
-        logger.info(f"Tổng số URL tìm được: {len(all_urls_raw)}, cần tải (sau khi lọc trùng): {len(all_urls)}")
+        deduped = [u for u in set(all_urls_raw) if u not in existing_urls and u not in crawler.crawled_urls]
+        # Hướng 3: Lọc thêm các URL thuộc domain đã đủ quota
+        all_urls = domain_bl.filter_urls(deduped)
+        logger.info(f"Tổng số URL tìm được: {len(all_urls_raw)}, sau dedup: {len(deduped)}, cần tải (sau domain filter): {len(all_urls)}")
 
         async def process_url(url: str, sem: asyncio.Semaphore) -> str:
             async with sem:
@@ -121,15 +136,37 @@ async def run_pipeline(queries: List[str], provider: str, limit: int, semaphore:
                     **meta_dict
                 )
                 
-                # ── 4c. Thử lấy title từ HTML nếu tên file là hash (không có ý nghĩa)
+                # ── 4c. Thử lấy title từ HTML hoặc file MD nếu tên file là hash (không có ý nghĩa)
+                real_title = None
                 if len(doc_name) == 64 or doc_name.startswith("http"):
                     try:
-                        html_title = await crawler.extract_page_title(url)
-                        if html_title:
-                            logger.info(f"Lấy được title từ HTML: '{html_title}'")
-                            meta.name = html_title
+                        real_title = await crawler.extract_page_title(url)
+                        if real_title:
+                            logger.info(f"Lấy được title từ HTML: '{real_title}'")
                     except Exception:
                         pass
+                        
+                    if not real_title and md_path:
+                        try:
+                            with open(md_path, "r", encoding="utf-8") as f:
+                                for line in f:
+                                    line_str = line.strip()
+                                    if line_str.startswith("# ") or line_str.startswith("## "):
+                                        title_candidate = line_str.lstrip("#").strip()
+                                        if 10 <= len(title_candidate) <= 150:
+                                            real_title = title_candidate
+                                            logger.info(f"Lấy được title từ file MD: '{real_title}'")
+                                            break
+                        except Exception as e:
+                            logger.warning(f"Không thể lấy title từ file MD: {e}")
+
+                if real_title:
+                    meta.name = real_title
+                    # Re-run heuristic rules on the actual title
+                    new_meta_dict = heuristic.apply_rules(name=real_title, url=url)
+                    for k, v in new_meta_dict.items():
+                        if v:
+                            setattr(meta, k, v)
                 
                 # Nếu chưa đủ 4 chiều, gọi Ollama LLM
                 if not meta.is_valid():
@@ -137,7 +174,7 @@ async def run_pipeline(queries: List[str], provider: str, limit: int, semaphore:
                         preview_text = f.read(1200)
                         
                     async with llm_sem:
-                        llm_result = await llm_enricher.analyze_document(name=doc_name, url=url, preview=preview_text)
+                        llm_result = await llm_enricher.analyze_document(name=meta.name, url=url, preview=preview_text)
                         
                     if llm_result:
                         linh_vucs_llm = llm_result.get("linh_vucs") or llm_result.get("linh_vuc")
@@ -184,11 +221,12 @@ async def run_pipeline(queries: List[str], provider: str, limit: int, semaphore:
 
         import json
         stats = {
-            "total_searched": len(all_urls_raw),
-            "deduplicated": len(all_urls_raw) - len(all_urls),
+            "total_raw": len(all_urls_raw),
+            "after_dedup": len(deduped),
+            "after_domain_filter": len(all_urls),
             "success": success_count,
             "manual": manual_count,
-            "failed": fail_count
+            "failed_or_skipped": fail_count
         }
         print(f"===STATS=== {json.dumps(stats)}")
         
@@ -199,11 +237,12 @@ async def run_pipeline(queries: List[str], provider: str, limit: int, semaphore:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Crawler Tài liệu tham khảo IruKa (Local Standalone + MCP Search)")
     parser.add_argument("--queries", type=str, required=True, help="Các từ khóa tìm kiếm, cách nhau bằng dấu phẩy")
-    parser.add_argument("--provider", type=str, default="tavily", choices=["tavily", "exa"], help="Tavily hoặc Exa")
+    parser.add_argument("--provider", type=str, default="tavily", choices=["tavily", "exa", "youtube"], help="Tavily, Exa, hoặc YouTube")
     parser.add_argument("--limit", type=int, default=5, help="Số kết quả trả về cho mỗi từ khóa")
     parser.add_argument("--semaphore", type=int, default=5, help="Số URL tải song song")
+    parser.add_argument("--query-offset", type=int, default=0, help="Vị trí bắt đầu lấy biến thể câu truy vấn")
     
     args = parser.parse_args()
     
     query_list = [q.strip() for q in args.queries.split(",") if q.strip()]
-    asyncio.run(run_pipeline(query_list, args.provider, args.limit, args.semaphore))
+    asyncio.run(run_pipeline(query_list, args.provider, args.limit, args.semaphore, args.query_offset))

@@ -1,6 +1,6 @@
 import streamlit as st
 from datetime import datetime
-from src.dashboard.utils import tai_du_lieu, MANIFEST_PATH
+from src.dashboard.utils import tai_du_lieu, MANIFEST_PATH, hien_thi_xem_truoc
 
 def render_tab_danh_sach():
     df = tai_du_lieu()
@@ -54,21 +54,42 @@ def render_tab_danh_sach():
             )
             if ma_chon != "— Chọn tài liệu —":
                 hang = hien_thi[hien_thi["Tên tài liệu"] == ma_chon].iloc[0]
-                with st.container(border=True):
-                    col_l, col_r = st.columns([1, 2])
-                    with col_l:
+                url = hang.get("Đường dẫn gốc", "")
+                
+                # Lấy hash_name từ file manifest gốc để render file local
+                hash_name = ""
+                if MANIFEST_PATH.exists() and url:
+                    import pandas as pd
+                    try:
+                        df_r = pd.read_csv(MANIFEST_PATH)
+                        hang_goc_rows = df_r[df_r["source_url"] == url]
+                        if not hang_goc_rows.empty:
+                            hash_name = str(hang_goc_rows.iloc[0].get("name", ""))
+                    except Exception:
+                        pass
+                
+                col_panel, col_viewer = st.columns([1, 2], gap="medium")
+                with col_panel:
+                    with st.container(border=True):
+                        st.markdown(f"**Tên:** {hang.get('Tên tài liệu', '—')}")
                         st.markdown(f"**Mã:** `{hang.get('Mã tài liệu', '—')}`")
                         st.markdown(f"**Loại:** `{hang.get('Loại tài liệu', '—')}`")
                         st.markdown(f"**Lĩnh vực:** `{hang.get('Lĩnh vực', '—')}`")
                         st.markdown(f"**Độ tuổi:** `{hang.get('Độ tuổi', '—')}`")
                         st.markdown(f"**Tier:** `{hang.get('Độ uy tín', '—')}`")
-                    with col_r:
-                        st.markdown(f"**Tên:** {hang.get('Tên tài liệu', '—')}")
-                        url = hang.get("Đường dẫn gốc", "")
+                        
                         if url and str(url).startswith("http"):
-                            st.markdown(f"**Nguồn:** [{url}]({url})")
+                            st.link_button(":material/open_in_new: Mở nguồn gốc", url, use_container_width=True)
+                        
                         need_m = str(hang.get("Cần duyệt", "False")).lower() == "true"
                         if need_m:
                             st.badge("Cần duyệt tay", color="orange", icon=":material/warning:")
                         else:
                             st.badge("Phân loại tự động", color="green", icon=":material/check_circle:")
+                
+                with col_viewer:
+                    st.markdown("##### :material/preview: Xem trước tài liệu")
+                    if hash_name or (url and "youtube" in url.lower()):
+                        hien_thi_xem_truoc(url, hash_name)
+                    else:
+                        st.info("Không có dữ liệu xem trước.")
