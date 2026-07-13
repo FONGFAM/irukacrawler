@@ -138,3 +138,30 @@ DOMAIN_DOCTYPE_MAP: Dict[str, str] = {
     "moet.gov.vn": "pl.thong_tu",
     "taphuan.csdl.edu.vn": "nc.tap_huan",
 }
+
+# ─────────────────────────────────────────────────────────────
+# 5.6 · Kỹ năng và Bộ sách (Dùng cho Enrichment Nâng cao)
+# ─────────────────────────────────────────────────────────────
+
+VALID_SKILL_IDS: Set[str] = {
+    # Toán (nt.toan)
+    "math.sk01", "math.sk02", "math.sk03", "math.sk04",
+    # Khám phá (nt.kpkh, nt.kpxh)
+    "sci.sk01", "sci.sk02", "soc.sk01",
+    # Ngôn ngữ (nn.doc_viet, nn.nghe_noi, nn.van_hoc)
+    "lit.sk01", "lit.sk02", "lit.sk03",
+    # Tạo hình, Âm nhạc
+    "art.sk01", "mus.sk01",
+    # Thể chất
+    "phy.sk01", "phy.sk02",
+    # KNXH
+    "sel.sk01", "sel.sk02"
+}
+
+VALID_SERIES_CODES: Set[str] = {
+    "canh-dieu",
+    "ket-noi-tri-thuc",
+    "chan-troi-sang-tao",
+    "cung-hoc-de-phat-trien",
+    "vi-su-binh-dang"
+}
