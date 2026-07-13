@@ -19,7 +19,8 @@ dependencies = [
     "youtube-transcript-api>=0.6.2",
     "streamlit>=1.35.0",
     "pandas>=2.2.2",
-    "plotly>=5.22.0"
+    "plotly>=5.22.0",
+    "markdown>=3.6"
 ]
 
 [build-system]
