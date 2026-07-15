@@ -124,6 +124,7 @@ def render_html(html_path: Path, url: str = "") -> bool:
     st.components.v1.html(content, height=700, scrolling=True)
     return True
 
+@st.cache_data(ttl=300)
 def get_content_hash_from_md(local_md_path: str) -> str:
     if not local_md_path or not Path(local_md_path).exists():
         return ""
