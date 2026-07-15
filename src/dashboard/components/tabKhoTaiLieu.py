@@ -10,10 +10,12 @@ def render_tab_kho_tai_lieu():
         st.info("Chưa có dữ liệu.", icon=":material/info:")
         return
 
-    # Chỉ lấy những tài liệu đã được duyệt (need_manual == False)
+    # Chỉ lấy những tài liệu đã được duyệt (need_manual == False) và đã export thành phẩm
     # df_hien_thi chứa các cột tiếng Việt: "Mã tài liệu", "Tên tài liệu", ... và "Cần duyệt"
-    df_thanh_pham = df[df["Cần duyệt"] == False]
-
+    if "Trạng thái" in df.columns:
+        df_thanh_pham = df[(df["Cần duyệt"] == False) & (df["Trạng thái"] == "Hoàn thành")]
+    else:
+        df_thanh_pham = df[df["Cần duyệt"] == False]
     if df_thanh_pham.empty:
         st.info("Chưa có tài liệu nào được phê duyệt thành phẩm.", icon=":material/info:")
     else:
