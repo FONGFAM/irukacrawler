@@ -1,10 +1,8 @@
 import streamlit as st
 import pandas as pd
 import hashlib
-from pathlib import Path
 from urllib.parse import urlparse
 from src.dashboard.utils import tai_du_lieu, MANIFEST_PATH, MAP_LINH_VUC, MAP_AGE_BAND, MAP_DOC_TYPE
-from src.taxonomy import VALID_SUB_DOMAIN_IDS, VALID_LEVEL_IDS
 from src.dashboard.components.viewer import render_document_preview
 
 @st.dialog("📝 Duyệt tài liệu", width="large")
