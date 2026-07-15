@@ -14,10 +14,10 @@ class LocalExporter:
         self.export_dir = Path(export_dir)
         self.manifest_path = self.export_dir.parent / "manifest.csv"
         
-        # Tạo file manifest nếu chưa có
+        # Tạo file manifest nếu chưa có hoặc rỗng
         self.manifest_path.parent.mkdir(parents=True, exist_ok=True)
-        if not self.manifest_path.exists():
-            with open(self.manifest_path, "w", encoding="utf-8", newline="") as f:
+        if not self.manifest_path.exists() or self.manifest_path.stat().st_size == 0:
+            with open(self.manifest_path, "w", encoding="utf-8-sig", newline="") as f:
                 writer = csv.writer(f)
                 writer.writerow([
                     "doc_code", "name", "source_url", "local_path", 

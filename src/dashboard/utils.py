@@ -28,12 +28,27 @@ MAP_DOC_TYPE = {
     "gt.truong": "GT Trường (GT)", "gt.quoc_te": "GT Quốc tế (GT)", "gt.giao_an": "Giáo án (GT)",
     "bt.nang_cao": "Nâng cao (BT)", "bt.bo_tro": "Bổ trợ (BT)",
     "bt.truyen_tho": "Truyện/Thơ (BT)", "bt.ky_nang": "Kỹ năng (BT)",
+    "bt.phieu_bai_tap": "Phiếu bài tập (BT)", "bt.tro_choi": "Trò chơi (BT)",
     "kn.kinh_nghiem": "Kinh nghiệm (KN)", "kn.skkn": "Sáng kiến KN (KN)",
     "kn.meo_day": "Mẹo dạy (KN)", "kn.du_gio": "Dự giờ (KN)",
     "nc.nghien_cuu": "Nghiên cứu (NC)", "nc.bai_bao": "Bài báo (NC)",
     "nc.tap_huan": "Tập huấn (NC)", "nc.ct_nuoc_ngoai": "CT Nước ngoài (NC)",
     "md.hinh_anh": "Hình ảnh (MD)", "md.am_thanh": "Âm thanh (MD)", "md.video": "Video (MD)",
     "khac": "Khác"
+}
+
+MAP_SUB_DOMAIN = {
+    "nt.toan": "Toán học (NT)", "nt.kpkh": "Khám phá khoa học (NT)", "nt.kpxh": "Khám phá xã hội (NT)",
+    "nn.doc_viet": "Đọc viết (NN)", "nn.nghe_noi": "Nghe nói (NN)", "nn.van_hoc": "Văn học (NN)",
+    "tm.tao_hinh": "Tạo hình (TM)", "tm.am_nhac": "Âm nhạc (TM)",
+    "tc.van_dong": "Vận động (TC)", "tc.dinh_duong": "Dinh dưỡng sức khỏe (TC)",
+    "tx.tinh_cam": "Tình cảm (TX)", "tx.kn_xh": "Kỹ năng xã hội (TX)"
+}
+
+MAP_LEVELS = {
+    "lv01": "Mức 1: Nhận biết",
+    "lv02": "Mức 2: Vận dụng",
+    "lv03": "Mức 3: Nâng cao sáng tạo"
 }
 
 # ─────────────────────────────────────────────────────────────
@@ -60,6 +75,10 @@ def tai_du_lieu() -> pd.DataFrame:
             df["age_band"] = df["age_band"].map(lambda x: MAP_AGE_BAND.get(str(x), str(x)))
         if "doc_type" in df.columns:
             df["doc_type"] = df["doc_type"].map(lambda x: MAP_DOC_TYPE.get(str(x), str(x)))
+            
+        # Parse JSON and boolean fields
+        if "need_manual" in df.columns:
+            df["need_manual"] = df["need_manual"].astype(str).str.lower() == "true"
             
         # Rename columns to friendly names globally
         df = df.rename(columns={

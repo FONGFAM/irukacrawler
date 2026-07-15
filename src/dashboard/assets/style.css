@@ -1,0 +1,9 @@
+@media (min-width: calc(736px + 8rem)) {
+
+    .st-emotion-cache-zy6yx3,
+    .block-container {
+        padding-left: 3rem;
+        padding-right: 3rem;
+        padding-top: 2rem;
+    }
+}

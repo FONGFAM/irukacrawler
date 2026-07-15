@@ -139,16 +139,20 @@ async def run_pipeline(queries: List[str], provider: str, limit: int, semaphore:
                     async with llm_sem:
                         llm_result = await llm_enricher.analyze_document(name=doc_name, url=url, preview=preview_text)
                         
-                    if llm_result:
-                        linh_vucs_llm = llm_result.get("linh_vucs") or llm_result.get("linh_vuc")
-                        if not meta.linh_vucs and linh_vucs_llm:
-                            meta.linh_vucs = linh_vucs_llm
-                        if not meta.age_bands and llm_result.get("age_bands"):
-                            meta.age_bands = llm_result.get("age_bands")
-                        if not meta.doc_type and llm_result.get("doc_type"):
-                            meta.doc_type = llm_result.get("doc_type")
-                        if not meta.source_tier and llm_result.get("source_tier"):
-                            meta.source_tier = llm_result.get("source_tier")
+                        if llm_result:
+                            if llm_result.get("suggested_name"):
+                                meta.name = llm_result.get("suggested_name")
+                            linh_vucs_llm = llm_result.get("linh_vucs") or llm_result.get("linh_vuc")
+                            if not meta.linh_vucs and linh_vucs_llm:
+                                meta.linh_vucs = linh_vucs_llm
+                            if not meta.age_bands and llm_result.get("age_bands"):
+                                meta.age_bands = llm_result.get("age_bands")
+                            if not meta.doc_type and llm_result.get("doc_type"):
+                                meta.doc_type = llm_result.get("doc_type")
+                            if not meta.source_tier and llm_result.get("source_tier"):
+                                meta.source_tier = llm_result.get("source_tier")
+                            if not meta.sub_domain_ids and llm_result.get("sub_domain_ids"):
+                                meta.sub_domain_ids = llm_result.get("sub_domain_ids")
 
                 doc_dto = DocumentDTO(
                     metadata=meta,
@@ -156,25 +160,17 @@ async def run_pipeline(queries: List[str], provider: str, limit: int, semaphore:
                     converted_md_path=md_path
                 )
                 
-                # Bước 5: Validate & Đánh dấu duyệt tay
-                # Luôn gọi validate_file + validate_metadata để làm sạch metadata,
-                # ngay cả khi doc_type == "khac" (sửa lỗi: trước đây skip validate_metadata khi "khac")
-                file_valid = validator.validate_file(md_path)
-                meta_valid = validator.validate_metadata(meta)
+                # BƯỚC MỚI: Mọi tài liệu sau khi tải và qua AI đều BẮT BUỘC phải qua tay người duyệt (need_manual = True)
+                doc_dto.need_manual = True
                 
-                if meta.doc_type == "khac" or not file_valid or not meta_valid:
-                    doc_dto.need_manual = True
-                    if meta.doc_type == "khac":
-                        logger.warning(f"Tài liệu phân loại 'khac', chuyển duyệt tay: {doc_name}")
+                file_valid = validator.validate_file(md_path)
+                if not file_valid:
+                    logger.warning(f"File không hợp lệ: {doc_name}")
                     
-                # Bước 6: Export Local
+                # Bước 6: Export Local (vào manifest.csv chờ duyệt)
                 exporter.export(doc_dto)
-                if doc_dto.need_manual:
-                    logger.warning(f"Cần duyệt tay: {doc_name}")
-                    return "MANUAL"
-                else:
-                    logger.success(f"Export thành công: {doc_name}")
-                    return "SUCCESS"
+                logger.warning(f"Đã đưa vào danh sách chờ duyệt tay: {meta.name}")
+                return "MANUAL"
 
         # Thực thi song song tất cả URL
         results = await asyncio.gather(*(process_url(u, sem) for u in all_urls))

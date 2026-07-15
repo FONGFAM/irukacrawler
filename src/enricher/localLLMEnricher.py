@@ -63,6 +63,7 @@ DANH MỤC HỢP LỆ (chỉ được chọn giá trị trong danh sách, không
 
 Định dạng JSON cần trả về:
 {{
+    "suggested_name": "<Tên tài liệu rõ ràng, có nghĩa, dựa vào nội dung>",
     "linh_vucs": ["<từ danh sách>"],
     "age_bands": ["<từ danh sách>"],
     "doc_type": "<từ danh sách>",
@@ -72,6 +73,7 @@ DANH MỤC HỢP LỆ (chỉ được chọn giá trị trong danh sách, không
 
 VÍ DỤ TRẢ VỀ:
 {{
+    "suggested_name": "Giáo án phát triển nhận thức: Đếm đến 5, nhận biết số 5",
     "linh_vucs": ["nhan_thuc"],
     "age_bands": ["56"],
     "doc_type": "gt.giao_an",

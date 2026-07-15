@@ -36,7 +36,7 @@ VALID_DOC_TYPES: Set[str] = {
     # GT — Giáo trình & CT trường
     "gt.truong", "gt.quoc_te", "gt.giao_an",
     # BT — Bổ trợ & Nâng cao
-    "bt.nang_cao", "bt.bo_tro", "bt.truyen_tho", "bt.ky_nang",
+    "bt.nang_cao", "bt.bo_tro", "bt.truyen_tho", "bt.ky_nang", "bt.phieu_bai_tap", "bt.tro_choi",
     # KN — Kinh nghiệm & Nội bộ
     "kn.kinh_nghiem", "kn.skkn", "kn.meo_day", "kn.du_gio",
     # NC — Nghiên cứu & Tham khảo
@@ -59,6 +59,7 @@ DOC_TYPE_TO_GROUP: Dict[str, str] = {
 
     "bt.nang_cao": "BT", "bt.bo_tro": "BT",
     "bt.truyen_tho": "BT", "bt.ky_nang": "BT",
+    "bt.phieu_bai_tap": "BT", "bt.tro_choi": "BT",
 
     "kn.kinh_nghiem": "KN", "kn.skkn": "KN",
     "kn.meo_day": "KN",     "kn.du_gio": "KN",
