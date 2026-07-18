@@ -58,6 +58,7 @@ async def run_pipeline(queries: List[str], provider: str, limit: int, semaphore:
     domain_bl = DomainBlacklist(threshold=50)
     
     try:
+        url_to_query = {}
         all_urls_raw = []
         # Bước 1: Gọi MCP Searcher lấy list URLs
         # Hướng 1: Mỗi query gốc được expand thành nhiều biến thể
@@ -66,6 +67,9 @@ async def run_pipeline(queries: List[str], provider: str, limit: int, semaphore:
             expanded_queries = expand_query(base_query, max_variants=4, offset=query_offset)
             for eq in expanded_queries:
                 urls = await searcher.search(eq, limit=limit)
+                for u in urls:
+                    if u not in url_to_query:
+                        url_to_query[u] = query
                 all_urls_raw.extend(urls)
             
         import pandas as pd
@@ -87,7 +91,7 @@ async def run_pipeline(queries: List[str], provider: str, limit: int, semaphore:
         all_urls = domain_bl.filter_urls(deduped)
         logger.info(f"Tổng số URL tìm được: {len(all_urls_raw)}, sau dedup: {len(deduped)}, cần tải (sau domain filter): {len(all_urls)}")
 
-        async def process_url(url: str, sem: asyncio.Semaphore) -> str:
+        async def process_url(url: str, original_query: str, sem: asyncio.Semaphore) -> str:
             async with sem:
                 # ── 0. Early Filter: Bỏ qua URL rõ ràng ngoài mầm non
                 url_lower = url.lower()
@@ -168,24 +172,42 @@ async def run_pipeline(queries: List[str], provider: str, limit: int, semaphore:
                         if v:
                             setattr(meta, k, v)
                 
-                # Nếu chưa đủ 4 chiều, gọi Ollama LLM
+                # Đọc trước một đoạn để LLM xử lý
+                with open(md_path, "r", encoding="utf-8") as f:
+                    preview_text = f.read(2500)
+                    
+                # BƯỚC MỚI: Gatekeeper (Chấm điểm lọc rác)
+                async with llm_sem:
+                    logger.info(f"Đang chấm điểm Gatekeeper cho: {url}")
+                    score = await llm_enricher.evaluate_relevance(preview_text, original_query, url=url)
+                    
+                if score < 35:
+                    logger.warning(f"BỊ LOẠI (Gatekeeper Score = {score}/100): {url}")
+                    return "FAILED"
+                logger.success(f"PASS GATEKEEPER (Score = {score}/100): {url}")
+
+                # Nếu chưa đủ 4 chiều, gọi Ollama LLM (Pass 2)
                 if not meta.is_valid():
-                    with open(md_path, "r", encoding="utf-8") as f:
-                        preview_text = f.read(1200)
-                        
                     async with llm_sem:
-                        llm_result = await llm_enricher.analyze_document(name=meta.name, url=url, preview=preview_text)
+                        llm_result = await llm_enricher.analyze_document(name=meta.name, url=url, preview=preview_text, user_query=original_query)
                         
-                    if llm_result:
-                        linh_vucs_llm = llm_result.get("linh_vucs") or llm_result.get("linh_vuc")
-                        if not meta.linh_vucs and linh_vucs_llm:
-                            meta.linh_vucs = linh_vucs_llm
-                        if not meta.age_bands and llm_result.get("age_bands"):
-                            meta.age_bands = llm_result.get("age_bands")
-                        if not meta.doc_type and llm_result.get("doc_type"):
-                            meta.doc_type = llm_result.get("doc_type")
-                        if not meta.source_tier and llm_result.get("source_tier"):
-                            meta.source_tier = llm_result.get("source_tier")
+                        if llm_result:
+                            if llm_result.get("suggested_name"):
+                                meta.name = llm_result.get("suggested_name")
+                            linh_vucs_llm = llm_result.get("linh_vucs") or llm_result.get("linh_vuc")
+                            if not meta.linh_vucs and linh_vucs_llm:
+                                meta.linh_vucs = linh_vucs_llm
+                            if not meta.age_bands and llm_result.get("age_bands"):
+                                meta.age_bands = llm_result.get("age_bands")
+                            if not meta.doc_type and llm_result.get("doc_type"):
+                                meta.doc_type = llm_result.get("doc_type")
+                            if not meta.source_tier and llm_result.get("source_tier"):
+                                meta.source_tier = llm_result.get("source_tier")
+                            if not meta.sub_domain_ids and llm_result.get("sub_domain_ids"):
+                                meta.sub_domain_ids = llm_result.get("sub_domain_ids")
+                            if llm_result.get("game_assets_potential"):
+                                # Lưu game assets vào biến tạm hoặc metadata attributes
+                                meta.game_assets_potential = llm_result.get("game_assets_potential")
 
                 doc_dto = DocumentDTO(
                     metadata=meta,
@@ -193,28 +215,25 @@ async def run_pipeline(queries: List[str], provider: str, limit: int, semaphore:
                     converted_md_path=md_path
                 )
                 
-                # Bước 5: Validate & Đánh dấu duyệt tay
-                # Luôn gọi validate_file + validate_metadata để làm sạch metadata,
-                # ngay cả khi doc_type == "khac" (sửa lỗi: trước đây skip validate_metadata khi "khac")
-                file_valid = validator.validate_file(md_path)
-                meta_valid = validator.validate_metadata(meta)
+                # Hard Drop: Nếu AI đã chấm là "Khác" (Rác/Lạc đề) thì vứt luôn, không bắt user duyệt
+                if meta.doc_type == "khac":
+                    logger.warning(f"AI phân loại là 'Khác' (Rác/Lạc đề), TỪ CHỐI TỰ ĐỘNG: {meta.name}")
+                    return "FAILED"
                 
-                if meta.doc_type == "khac" or not file_valid or not meta_valid:
-                    doc_dto.need_manual = True
-                    if meta.doc_type == "khac":
-                        logger.warning(f"Tài liệu phân loại 'khac', chuyển duyệt tay: {doc_name}")
+                # BƯỚC MỚI: Mọi tài liệu hợp lệ sau khi tải và qua AI đều BẮT BUỘC phải qua tay người duyệt (need_manual = True)
+                doc_dto.need_manual = True
+                
+                file_valid = validator.validate_file(md_path)
+                if not file_valid:
+                    logger.warning(f"File không hợp lệ: {doc_name}")
                     
-                # Bước 6: Export Local
+                # Bước 6: Export Local (vào manifest.csv chờ duyệt)
                 exporter.export(doc_dto)
-                if doc_dto.need_manual:
-                    logger.warning(f"Cần duyệt tay: {doc_name}")
-                    return "MANUAL"
-                else:
-                    logger.success(f"Export thành công: {doc_name}")
-                    return "SUCCESS"
+                logger.warning(f"Đã đưa vào danh sách chờ duyệt tay: {meta.name}")
+                return "MANUAL"
 
         # Thực thi song song tất cả URL
-        results = await asyncio.gather(*(process_url(u, sem) for u in all_urls))
+        results = await asyncio.gather(*(process_url(u, url_to_query[u], sem) for u in all_urls))
         success_count = results.count("SUCCESS")
         manual_count = results.count("MANUAL")
         fail_count = results.count("FAILED")

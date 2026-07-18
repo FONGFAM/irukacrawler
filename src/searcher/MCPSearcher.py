@@ -27,8 +27,11 @@ class MCPSearcher:
         self.args = parts[1:]
 
     async def search(self, query: str, limit: int = 10) -> List[str]:
-        """Gọi MCP tool để tìm kiếm các URL chứa tài liệu PDF/DOCX."""
+        """Gọi MCP tool để tìm kiếm các URL."""
         logger.info(f"Bắt đầu tìm kiếm với {self.provider.upper()}: '{query}'")
+        
+        expanded_queries = [query]
+        
         server_params = StdioServerParameters(
             command=self.cmd,
             args=self.args,
@@ -41,55 +44,58 @@ class MCPSearcher:
                 async with ClientSession(read, write) as session:
                     await session.initialize()
                     
-                    if self.provider == "tavily":
-                        tool_name = "tavily_search"
-                        # Tavily tìm kiếm chung
-                        arguments = {"query": query + " filetype:pdf OR filetype:doc", "max_results": limit}
-                    else:
-                        # Exa search
-                        tool_name = "web_search_exa"
-                        arguments = {"query": query, "num_results": limit}
+                    for q in expanded_queries:
+                        logger.info(f"-> Đang tìm nhánh: '{q}'")
+                        if self.provider == "tavily":
+                            tool_name = "tavily_search"
+                            # Tavily tìm kiếm chung, thêm DOCX để quét rộng hơn
+                            arguments = {"query": f"{q} (filetype:pdf OR filetype:doc OR filetype:docx)", "max_results": limit}
+                        else:
+                            # Exa search
+                            tool_name = "web_search_exa"
+                            arguments = {"query": q, "num_results": limit}
 
-                    result = await session.call_tool(tool_name, arguments=arguments)
-                    
-                    if result.content:
-                        import json
-                        import re
-                        text_content = result.content[0].text
                         try:
-                            # Tùy theo cấu trúc trả về của từng MCP
-                            data = json.loads(text_content)
+                            result = await session.call_tool(tool_name, arguments=arguments)
                             
-                            # Phân tích kết quả của Tavily
-                            if isinstance(data, dict) and "results" in data:
-                                for item in data["results"]:
-                                    if item.get("url"):
-                                        raw_results.append({
-                                            "url": item.get("url"),
-                                            "title": item.get("title") or item.get("heading") or ""
-                                        })
-                            # Phân tích kết quả của Exa
-                            elif isinstance(data, list):
-                                for item in data:
-                                    if isinstance(item, dict) and item.get("url"):
-                                        raw_results.append({
-                                            "url": item.get("url"),
-                                            "title": item.get("title") or item.get("heading") or ""
-                                        })
-                            else:
-                                logger.warning("Dữ liệu JSON không chứa cấu trúc mong muốn. Fallback sang Regex...")
-                                raise ValueError("Invalid JSON format")
+                            if result.content:
+                                import json
+                                import re
+                                text_content = result.content[0].text
+                                try:
+                                    # Tùy theo cấu trúc trả về của từng MCP
+                                    data = json.loads(text_content)
+                                    
+                                    # Phân tích kết quả của Tavily
+                                    if isinstance(data, dict) and "results" in data:
+                                        for item in data["results"]:
+                                            if item.get("url"):
+                                                raw_results.append({
+                                                    "url": item.get("url"),
+                                                    "title": item.get("title") or item.get("heading") or ""
+                                                })
+                                    # Phân tích kết quả của Exa
+                                    elif isinstance(data, list):
+                                        for item in data:
+                                            if isinstance(item, dict) and item.get("url"):
+                                                raw_results.append({
+                                                    "url": item.get("url"),
+                                                    "title": item.get("title") or item.get("heading") or ""
+                                                })
+                                    else:
+                                        logger.warning("Dữ liệu JSON không chứa cấu trúc mong muốn. Fallback sang Regex...")
+                                        raise ValueError("Invalid JSON format")
+                                except Exception as e:
+                                    logger.debug(f"Không thể parse JSON từ MCP (lý do: {e}). Đang dùng Regex để bóc tách URL từ chuỗi text...")
+                                    # Fallback: dùng Regex trích xuất toàn bộ URL từ text trả về
+                                    found_urls = re.findall(r'https?://[^\s)"]+', text_content)
+                                    if found_urls:
+                                        for u in list(set(found_urls)):
+                                            raw_results.append({"url": u, "title": ""})
+                                    else:
+                                        logger.error(f"Không tìm thấy URL nào trong nội dung trả về: {text_content[:200]}")
                         except Exception as e:
-                            logger.debug(f"Không thể parse JSON từ MCP (lý do: {e}). Đang dùng Regex để bóc tách URL từ chuỗi text...")
-                            # Fallback: dùng Regex trích xuất toàn bộ URL từ text trả về
-                            # Tránh match các kí tự kết thúc ko hợp lệ
-                            found_urls = re.findall(r'https?://[^\s)"]+', text_content)
-                            if found_urls:
-                                for u in list(set(found_urls)):
-                                    # Thử bóc tách một tiêu đề thô nếu có xung quanh URL
-                                    raw_results.append({"url": u, "title": ""})
-                            else:
-                                logger.error(f"Không tìm thấy URL nào trong nội dung trả về: {text_content[:200]}")
+                            logger.error(f"Lỗi nhánh '{q}': {e}")
                             
         except Exception as e:
             logger.error(f"Lỗi khi chạy MCP Server ({self.provider}): {e}")
@@ -100,5 +106,5 @@ class MCPSearcher:
         filtered = rf.filter(raw_results)
         urls = [item["url"] for item in filtered]
         
-        logger.success(f"Tìm thấy {len(urls)}/{len(raw_results)} URLs hợp lệ qua {self.provider}")
+        logger.success(f"Tìm thấy {len(urls)}/{len(raw_results)} URLs hợp lệ qua {self.provider} (từ {len(expanded_queries)} nhánh tìm kiếm)")
         return urls

@@ -1,0 +1,8 @@
+@media (min-width: calc(736px + 8rem)) {
+
+    .block-container {
+        padding-left: 3rem;
+        padding-right: 3rem;
+        padding-top: 2rem;
+    }
+}

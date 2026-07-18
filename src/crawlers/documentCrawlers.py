@@ -44,6 +44,17 @@ class BaseCrawler:
         self._robots_cache: dict[str, urllib.robotparser.RobotFileParser] = {}
         self.last_request_time: dict[str, float] = {}  # per-domain rate limit
         self.blacklist = ["scribd.com", "docgo.net", "123docz.net", "tailieu.vn", "violet.vn"]
+        
+        # Danh sách domain bị chặn cứng - không phải giáo dục mầm non
+        self.domain_blocklist = {
+            "wikipedia.org", "wiktionary.org", "wikimedia.org",
+            "facebook.com", "twitter.com", "instagram.com", "tiktok.com",
+            # Các trang tôn giáo thường bị lẫn vào kết quả tìm "giáo"
+            "giaophan", "tonggiaophan", "giaohan", "tgp", "gp-", "conggiaonn",
+        }
+        
+        # Các đuôi domain ưu tiên giáo dục (sẽ bỏ qua một số filter chặt)
+        self.edu_domain_hints = ["edu.vn", "moet.gov.vn", "mamnon", "thuviengiaoan", "giaoan", "hoc10"]
 
         self.client = httpx.AsyncClient(
             headers={"User-Agent": USER_AGENT},
@@ -96,6 +107,13 @@ class BaseCrawler:
     # ─────────────────────────────────────────────
     async def fetch(self, url: str) -> Optional[tuple[bytes, str]]:
         """Trả về (content_bytes, extension) hoặc None nếu lỗi."""
+        # Kiểm tra domain blocklist trước robots.txt
+        url_lower = url.lower()
+        for blocked in self.domain_blocklist:
+            if blocked in url_lower:
+                logger.warning(f"Domain bị chặn (blocklist): {url}")
+                return None
+        
         if not await self._check_robots(url):
             logger.error(f"robots.txt từ chối: {url}")
             return None

@@ -20,11 +20,18 @@ def render_tab_thong_ke():
                 options=df["Trạng thái"].unique().tolist() if "Trạng thái" in df.columns else [],
                 default=df["Trạng thái"].unique().tolist() if "Trạng thái" in df.columns else [],
             )
+            _tier_options = sorted([x for x in df["Độ uy tín"].dropna().unique().tolist() if str(x) not in ("", "nan")]) if "Độ uy tín" in df.columns else []
+            def _format_tier(x):
+                try:
+                    return {1: "⭐ Tier 1 — Blog/GV", 2: "⭐⭐ Tier 2 — SGK/GT", 3: "⭐⭐⭐ Tier 3 — Bộ GD"}.get(int(float(x)), str(x))
+                except:
+                    return "Không rõ"
+
             loc_tier = st.multiselect(
                 "Mức độ uy tín (Tier)",
-                options=sorted(df["Độ uy tín"].unique().tolist()) if "Độ uy tín" in df.columns else [],
-                default=sorted(df["Độ uy tín"].unique().tolist()) if "Độ uy tín" in df.columns else [],
-                format_func=lambda x: {1: "⭐ Tier 1 — Blog/GV", 2: "⭐⭐ Tier 2 — SGK/GT", 3: "⭐⭐⭐ Tier 3 — Bộ GD"}.get(int(x), str(x)),
+                options=_tier_options,
+                default=_tier_options,
+                format_func=_format_tier,
             )
             st.caption(f"Cập nhật lúc: {datetime.now().strftime('%H:%M:%S')}")
             def lam_moi_du_lieu():
