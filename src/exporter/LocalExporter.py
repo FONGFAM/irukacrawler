@@ -49,14 +49,11 @@ class LocalExporter:
         return f"DOC-{lv2}-{age}-{nhom}-{seq}"
 
     def export(self, doc: DocumentDTO) -> bool:
-        """Lưu file vào đúng cấu trúc và ghi manifest.
-        
-        Gọi validate_metadata() trước export để đảm bảo metadata sạch.
-        """
+        """Lưu file vào đúng cấu trúc và ghi DB."""
         try:
             meta = doc.metadata
             
-            # Validate lại metadata trước khi export (sửa lỗi: trước đây không validate lại)
+            # Validate lại metadata trước khi export
             v = Validator()
             if not doc.need_manual and not v.validate_metadata(meta):
                 logger.warning(f"Export: metadata không hợp lệ, gắn need_manual: {meta.name}")
@@ -96,15 +93,38 @@ class LocalExporter:
                 
             logger.success(f"Exported to: {target_path}")
             
-            # Ghi manifest
-            with open(self.manifest_path, "a", encoding="utf-8", newline="") as f:
-                writer = csv.writer(f)
-                status = "need_manual" if doc.need_manual else "exported"
-                writer.writerow([
-                    doc_code, meta.name, meta.source_url, str(target_path),
-                    linh_vuc, age, meta.doc_type, meta.source_tier,
-                    meta.crawled_at, status, doc.need_manual
-                ])
+            # Ghi vào PostgreSQL thay vì CSV
+            from src.database import SessionLocal, DocumentModel
+            import datetime
+            
+            status = "need_manual" if doc.need_manual else "exported"
+            
+            db = SessionLocal()
+            try:
+                new_doc = DocumentModel(
+                    doc_code=doc_code,
+                    name=meta.name,
+                    source_url=meta.source_url,
+                    local_path=str(target_path),
+                    linh_vuc=linh_vuc,
+                    age_band=age,
+                    doc_type=meta.doc_type,
+                    source_tier=meta.source_tier,
+                    sub_domain_ids=",".join(meta.sub_domain_ids) if meta.sub_domain_ids else "",
+                    level_ids=",".join(meta.level_ids) if meta.level_ids else "",
+                    game_assets_potential=meta.game_assets_potential or "",
+                    uploaded_at=datetime.datetime.now(),
+                    status=status,
+                    need_manual=doc.need_manual
+                )
+                db.add(new_doc)
+                db.commit()
+            except Exception as db_e:
+                db.rollback()
+                logger.error(f"Error saving to DB: {db_e}")
+                # Optional: fallback to CSV or just fail
+            finally:
+                db.close()
                 
             return True
         except Exception as e:

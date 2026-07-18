@@ -145,7 +145,7 @@ def get_content_hash_from_md(local_md_path: str) -> str:
         pass
     return ""
 
-def render_document_preview(url: str, hash_name: str, local_md_path: str = ""):
+def render_document_preview(url: str, hash_name: str, local_md_path: str = "", game_assets_potential: str = ""):
     """Hiển thị bản xem trước tốt nhất có thể."""
     
     # 1. Tìm file raw
@@ -176,7 +176,12 @@ def render_document_preview(url: str, hash_name: str, local_md_path: str = ""):
                 if local_md_path and Path(local_md_path).exists():
                     md_content = Path(local_md_path).read_text(encoding="utf-8")
                     with st.container(height=650, border=True):
-                        st.markdown(md_content)
+                        if game_assets_potential and str(game_assets_potential).strip():
+                            st.markdown("### 🎮 Ý Tưởng Làm Game (Game Assets)")
+                            st.info(game_assets_potential)
+
+                        # Metadata khác
+                        st.markdown("### 🏷️ Metadata Khác")
                 else:
                     st.warning("Chưa có bản trích xuất nội dung cho trang này.")
             return

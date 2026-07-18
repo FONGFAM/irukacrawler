@@ -55,19 +55,23 @@ MAP_LEVELS = {
 # Hàm tiện ích dùng chung
 # ─────────────────────────────────────────────────────────────
 
+from src.database import engine, init_db
+
 @st.cache_data(ttl=30)
 def tai_du_lieu() -> pd.DataFrame:
-    """Đọc file kết quả (manifest.csv) và cache 30 giây."""
-    if not MANIFEST_PATH.exists() or MANIFEST_PATH.stat().st_size == 0:
-        return pd.DataFrame()
+    """Đọc bảng documents từ PostgreSQL và cache 30 giây."""
     try:
-        df = pd.read_csv(MANIFEST_PATH)
-    except pd.errors.EmptyDataError:
+        # Nếu chưa tạo bảng thì thử tạo (chỉ có tác dụng nếu kết nối được DB)
+        init_db()
+        df = pd.read_sql_table("documents", engine)
+    except Exception as e:
+        # Nếu có lỗi (chẳng hạn không kết nối được PostgreSQL), bỏ qua
         return pd.DataFrame()
+        
+    if df.empty:
+        return df
+
     try:
-        if "uploaded_at" in df.columns:
-            df["uploaded_at"] = pd.to_datetime(df["uploaded_at"], errors="coerce")
-            
         # Chuyển đổi tên thân thiện
         if "linh_vuc" in df.columns:
             df["linh_vuc"] = df["linh_vuc"].map(lambda x: MAP_LINH_VUC.get(str(x), str(x)))
@@ -76,9 +80,9 @@ def tai_du_lieu() -> pd.DataFrame:
         if "doc_type" in df.columns:
             df["doc_type"] = df["doc_type"].map(lambda x: MAP_DOC_TYPE.get(str(x), str(x)))
             
-        # Parse JSON and boolean fields
+        # Parse boolean fields (đã lưu bool trong DB, nhưng ta cứ check an toàn)
         if "need_manual" in df.columns:
-            df["need_manual"] = df["need_manual"].astype(str).str.lower() == "true"
+            df["need_manual"] = df["need_manual"].astype(bool)
             
         # Rename columns to friendly names globally
         df = df.rename(columns={
@@ -99,7 +103,7 @@ def tai_du_lieu() -> pd.DataFrame:
             
         # Xử lý các giá trị kỹ thuật khó hiểu
         if "Mã tài liệu" in df.columns:
-            df["Mã tài liệu"] = df["Mã tài liệu"].replace("NEED_MANUAL", "Chưa cấp mã")
+            df["Mã tài liệu"] = df["Mã tài liệu"].replace("NEED_MANUAL_MIGRATED", "Chưa cấp mã").replace("NEED_MANUAL", "Chưa cấp mã")
             
         if "Tên tài liệu" in df.columns and "Đường dẫn gốc" in df.columns:
             # Nếu tên tài liệu là chuỗi hash (độ dài 64), lấy tên file từ URL
@@ -114,7 +118,7 @@ def tai_du_lieu() -> pd.DataFrame:
             
         return df
     except Exception as e:
-        st.error(f"Lỗi khi đọc dữ liệu: {e}")
+        st.error(f"Lỗi khi xử lý dữ liệu từ Database: {e}")
         return pd.DataFrame()
 
 

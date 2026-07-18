@@ -2,15 +2,13 @@ import streamlit as st
 import pandas as pd
 import hashlib
 from urllib.parse import urlparse
-from src.dashboard.utils import tai_du_lieu, MANIFEST_PATH, MAP_LINH_VUC, MAP_AGE_BAND, MAP_DOC_TYPE
+from src.dashboard.utils import tai_du_lieu, MAP_LINH_VUC, MAP_AGE_BAND, MAP_DOC_TYPE
 from src.dashboard.components.viewer import render_document_preview
+from src.database import SessionLocal, DocumentModel
+from sqlalchemy.orm import Session
 
 @st.dialog("📝 Duyệt tài liệu", width="large")
-def popup_duyet_tai_lieu(idx_goc, url, ten_goi_y, linh_vuc, age_band, doc_type, source_tier, sub_domains="", levels="", local_path="", uploaded_at=""):
-    df_raw = pd.DataFrame()
-    if MANIFEST_PATH.exists() and MANIFEST_PATH.stat().st_size > 0:
-        df_raw = pd.read_csv(MANIFEST_PATH)
-        
+def popup_duyet_tai_lieu(idx_goc, doc_id, url, ten_goi_y, linh_vuc, age_band, doc_type, source_tier, sub_domains="", levels="", local_path="", uploaded_at="", game_assets_potential=""):
     domain = urlparse(str(url)).netloc if str(url).startswith("http") else "Local File"
     col_h1, col_h2, col_h3, col_h4 = st.columns([1.5, 1.5, 1.5, 1])
     with col_h1:
@@ -74,45 +72,117 @@ def popup_duyet_tai_lieu(idx_goc, url, ten_goi_y, linh_vuc, age_band, doc_type, 
                 btn_reject = st.form_submit_button("Từ chối", use_container_width=True)
 
         if submitted:
-            if not df_raw.empty:
-                # Ép kiểu dữ liệu để tránh lỗi pandas khi assign (vd: age_band bị infer thành int64)
-                for col in ["linh_vuc", "age_band", "doc_type", "sub_domain_ids", "level_ids"]:
-                    if col in df_raw.columns:
-                        df_raw[col] = df_raw[col].astype(str)
-                
-                df_raw.at[idx_goc, "name"] = ten_moi
-                df_raw.at[idx_goc, "linh_vuc"] = chon_lv
-                df_raw.at[idx_goc, "age_band"] = chon_ab
-                df_raw.at[idx_goc, "doc_type"] = chon_dt
-                df_raw.at[idx_goc, "source_tier"] = int(chon_tier)
-                df_raw.at[idx_goc, "sub_domain_ids"] = ",".join(chon_subs)
-                df_raw.at[idx_goc, "level_ids"] = ",".join(chon_levels)
-                df_raw.at[idx_goc, "need_manual"] = False
-                df_raw.at[idx_goc, "status"] = "exported"
-                
-                short_hash = hashlib.md5(str(url).encode()).hexdigest()[:4].upper()
-                lv_m = {"nhan_thuc": "NT", "ngon_ngu": "NN", "tham_my": "TM", "the_chat": "TC", "tinh_cam_xh": "TX"}.get(chon_lv, "XX")
-                dt_m = chon_dt.split(".")[-1].upper()[:3] if "." in chon_dt else chon_dt[:3].upper()
-                df_raw.at[idx_goc, "doc_code"] = f"DOC-{lv_m}-{chon_ab}-{dt_m}-{short_hash}"
-                
-                df_raw.to_csv(MANIFEST_PATH, index=False, encoding="utf-8-sig")
-                tai_du_lieu.clear()
-                st.session_state.duyet_thanh_cong = True
-                st.rerun()
+            print(f"DEBUG: Form submitted for doc_id={doc_id}")
+            if doc_id:
+                db: Session = SessionLocal()
+                try:
+                    doc = db.query(DocumentModel).filter(DocumentModel.id == doc_id).first()
+                    if doc:
+                        print(f"DEBUG: Found doc {doc.id}, updating...")
+                        doc.name = ten_moi
+                        doc.linh_vuc = chon_lv
+                        doc.age_band = chon_ab
+                        doc.doc_type = chon_dt
+                        doc.source_tier = int(chon_tier)
+                        doc.sub_domain_ids = ",".join(chon_subs)
+                        doc.level_ids = ",".join(chon_levels)
+                        doc.need_manual = False
+                        doc.status = "exported"
+                        
+                        short_hash = hashlib.md5(str(url).encode()).hexdigest()[:4].upper()
+                        lv_m = {"nhan_thuc": "NT", "ngon_ngu": "NN", "tham_my": "TM", "the_chat": "TC", "tinh_cam_xh": "TX"}.get(chon_lv, "XX")
+                        dt_m = chon_dt.split(".")[-1].upper()[:3] if "." in chon_dt else chon_dt[:3].upper()
+                        doc.doc_code = f"DOC-{lv_m}-{chon_ab}-{dt_m}-{short_hash}"
+                        
+                        # Cập nhật trực tiếp file Markdown trên ổ cứng
+                        import re
+                        from pathlib import Path
+                        old_path = Path(doc.local_path) if doc.local_path else None
+                        print(f"DEBUG: old_path={old_path}, exists={old_path.exists() if old_path else False}")
+                        if old_path and old_path.exists():
+                            with open(old_path, "r", encoding="utf-8") as f:
+                                content = f.read()
+                            
+                            new_fields = {
+                                "name": ten_moi,
+                                "linh_vucs": [chon_lv],
+                                "age_bands": [chon_ab],
+                                "doc_type": chon_dt,
+                                "source_tier": int(chon_tier),
+                                "sub_domain_ids": chon_subs,
+                                "level_ids": chon_levels,
+                                "human_verified": "true"
+                            }
+                            
+                            parts = content.split("---", 2)
+                            if len(parts) >= 3:
+                                frontmatter = parts[1]
+                                body = parts[2]
+                                for k, v in new_fields.items():
+                                    if isinstance(v, list):
+                                        val_str = "[" + ", ".join([f'"{i}"' for i in v]) + "]"
+                                    elif isinstance(v, str) and v not in ["true", "false"]:
+                                        safe_v = v.replace('"', '\\"')
+                                        val_str = f'"{safe_v}"'
+                                    else:
+                                        val_str = str(v)
+                                    
+                                    pat = r"(^" + k + r":).*$"
+                                    if re.search(pat, frontmatter, flags=re.MULTILINE):
+                                        frontmatter = re.sub(pat, f"{k}: {val_str}", frontmatter, flags=re.MULTILINE)
+                                    else:
+                                        if not frontmatter.endswith("\n"): frontmatter += "\n"
+                                        frontmatter += f"{k}: {val_str}\n"
+                                
+                                new_content = f"---{frontmatter}---{body}"
+                                
+                                safe_name = re.sub(r'[^a-zA-Z0-9]+', '-', ten_moi.lower()).strip('-')
+                                new_slug = f"{doc.doc_code}__{safe_name}.md"
+                                new_path = old_path.parent / new_slug
+                                
+                                print(f"DEBUG: writing to {new_path}")
+                                with open(new_path, "w", encoding="utf-8") as f:
+                                    f.write(new_content)
+                                
+                                if str(old_path) != str(new_path):
+                                    old_path.unlink()
+                                
+                                doc.local_path = str(new_path)
+                        
+                        db.commit()
+                        print("DEBUG: db.commit() success")
+                        tai_du_lieu.clear()
+                        st.session_state.duyet_thanh_cong = True
+                        st.rerun()
+                except Exception as e:
+                    print(f"DEBUG EXCEPTION: {e}")
+                    st.error(f"Lỗi cập nhật CSDL: {e}")
+                    db.rollback()
+                finally:
+                    db.close()
                 
         if btn_reject:
-            if not df_raw.empty:
-                df_raw.at[idx_goc, "status"] = "rejected"
-                df_raw.at[idx_goc, "need_manual"] = False
-                df_raw.to_csv(MANIFEST_PATH, index=False, encoding="utf-8-sig")
-                tai_du_lieu.clear()
-                st.toast("Đã từ chối tài liệu.", icon="❌")
-                st.rerun()
+            if doc_id:
+                db: Session = SessionLocal()
+                try:
+                    doc = db.query(DocumentModel).filter(DocumentModel.id == doc_id).first()
+                    if doc:
+                        doc.status = "rejected"
+                        doc.need_manual = False
+                        db.commit()
+                        tai_du_lieu.clear()
+                        st.toast("Đã từ chối tài liệu.", icon="❌")
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"Lỗi cập nhật CSDL: {e}")
+                    db.rollback()
+                finally:
+                    db.close()
                 
     with col_preview:
         st.markdown("### Xem trước tài liệu")
         hash_name = hashlib.sha256(str(url).encode()).hexdigest()
-        render_document_preview(url, hash_name, local_path)
+        render_document_preview(url, hash_name, local_path, game_assets_potential)
 
 def render_tab_danh_sach():
     # CSS Custom cho Popup giống thiết kế mẫu (buttons màu xanh, đỏ)
@@ -151,43 +221,70 @@ def render_tab_danh_sach():
         st.success("Tuyệt vời! Không có tài liệu nào đang chờ duyệt.", icon=":material/celebration:")
     else:
         st.subheader(f"Danh sách chờ duyệt — {len(df_can_duyet):,} bản ghi")
-        
+
+        # ── Tìm kiếm nhanh
+        tim_kiem = st.text_input(
+            "🔍 Tìm kiếm",
+            placeholder="Nhập tên tài liệu, loại, URL…",
+            label_visibility="collapsed",
+            key="search_danh_sach",
+        )
+        if tim_kiem:
+            mask = df_can_duyet.apply(lambda col: col.astype(str).str.contains(tim_kiem, case=False, na=False)).any(axis=1)
+            df_hien_thi = df_can_duyet[mask]
+        else:
+            df_hien_thi = df_can_duyet
+
+        # ── Phân trang: tính sẵn, render bảng trước, đặt selector phía dưới
+        PAGE_SIZE = 20
+        tong_trang = max(1, (len(df_hien_thi) - 1) // PAGE_SIZE + 1)
+        page_key = "page_danh_sach"
+        trang_hien_tai = st.session_state.get(page_key, 1)
+        start_row = (trang_hien_tai - 1) * PAGE_SIZE
+        df_trang = df_hien_thi.iloc[start_row: start_row + PAGE_SIZE]
+
         # Bảng dữ liệu có on_select để kích hoạt popup
         cot_hien_thi = ["Mã tài liệu", "Tên tài liệu", "Lĩnh vực", "Độ tuổi", "Loại tài liệu", "Độ uy tín"]
         cot_co_san = [c for c in cot_hien_thi if c in df_can_duyet.columns]
-        
+
         st.info("💡 **Hướng dẫn:** Click chọn một hàng trong bảng dưới đây để mở Popup chỉnh sửa và phê duyệt tài liệu.")
         event = st.dataframe(
-            df_can_duyet[cot_co_san], 
-            hide_index=True, 
+            df_trang[cot_co_san],
+            hide_index=True,
             height=400,
             selection_mode="single-row",
             on_select="rerun"
         )
+
+        # ── Phân trang nằm DƯỚI bảng
+        col_info, col_nav = st.columns([3, 1])
+        with col_info:
+            st.caption(f"Hiển thị {start_row + 1}–{min(start_row + PAGE_SIZE, len(df_hien_thi))} / {len(df_hien_thi)} bản ghi")
+        with col_nav:
+            st.number_input(
+                f"Trang (/ {tong_trang})",
+                min_value=1, max_value=tong_trang, value=trang_hien_tai, step=1,
+                key=page_key,
+                label_visibility="collapsed",
+            )
         
         if event.selection.rows:
             selected_row_idx = event.selection.rows[0]
-            # Lấy index thực tế của dòng trong df_can_duyet
-            real_index = df_can_duyet.index[selected_row_idx]
+            # df_trang là DataFrame đã được load từ SQL, nó chứa luôn 'id' (nếu select *)
+            hang_goc = df_trang.iloc[selected_row_idx]
             
-            # Lấy dòng nguyên gốc từ MANIFEST_PATH
-            df_raw = pd.DataFrame()
-            if MANIFEST_PATH.exists() and MANIFEST_PATH.stat().st_size > 0:
-                df_raw = pd.read_csv(MANIFEST_PATH)
-                
-            if not df_raw.empty and real_index in df_raw.index:
-                hang_goc = df_raw.loc[real_index]
-                
-                url = hang_goc.get("source_url", "")
-                ten_goi_y = hang_goc.get("name", "")
-                linh_vuc = hang_goc.get("linh_vuc", "")
-                age_band = hang_goc.get("age_band", "")
-                doc_type = hang_goc.get("doc_type", "")
-                source_tier = hang_goc.get("source_tier", 1)
-                sub_domains = hang_goc.get("sub_domain_ids", "")
-                levels = hang_goc.get("level_ids", "")
-                local_path = hang_goc.get("local_path", "")
-                uploaded_at = hang_goc.get("uploaded_at", "")
-                
-                # Gọi thẳng hàm popup để hiển thị luôn khi người dùng chọn dòng
-                popup_duyet_tai_lieu(real_index, url, ten_goi_y, linh_vuc, age_band, doc_type, source_tier, sub_domains, levels, local_path, uploaded_at)
+            doc_id = hang_goc.get("id")
+            url = hang_goc.get("Đường dẫn gốc", "")
+            ten_goi_y = hang_goc.get("Tên tài liệu", "")
+            linh_vuc = hang_goc.get("Lĩnh vực", "")
+            age_band = hang_goc.get("Độ tuổi", "")
+            doc_type = hang_goc.get("Loại tài liệu", "")
+            source_tier = hang_goc.get("Độ uy tín", 1)
+            sub_domains = hang_goc.get("sub_domain_ids", "")
+            levels = hang_goc.get("level_ids", "")
+            local_path = hang_goc.get("local_path", "")
+            uploaded_at = hang_goc.get("Ngày tải", "")
+            game_assets = hang_goc.get("game_assets_potential", "")
+            
+            # Gọi thẳng hàm popup để hiển thị luôn khi người dùng chọn dòng
+            popup_duyet_tai_lieu(None, doc_id, url, ten_goi_y, linh_vuc, age_band, doc_type, source_tier, sub_domains, levels, local_path, uploaded_at, game_assets)

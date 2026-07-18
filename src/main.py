@@ -51,12 +51,22 @@ async def run_pipeline(queries: List[str], provider: str, limit: int, semaphore:
     fail_count = 0
     
     try:
+        url_to_query = {}
         all_urls_raw = []
         # Bước 1: Gọi MCP Searcher lấy list URLs
         for query in queries:
-            actual_query = f"{query} site:youtube.com" if provider == "youtube" else query
-            urls = await searcher.search(actual_query, limit=limit)
-            all_urls_raw.extend(urls)
+            if provider != "youtube":
+                logger.info(f"Đang dùng AI sinh truy vấn tối ưu cho: {query}")
+                smart_queries = await llm_enricher.generate_smart_queries(query)
+            else:
+                smart_queries = [f"{query} site:youtube.com"]
+                
+            for sq in smart_queries:
+                urls = await searcher.search(sq, limit=limit)
+                for u in urls:
+                    if u not in url_to_query:
+                        url_to_query[u] = query
+                all_urls_raw.extend(urls)
             
         import pandas as pd
         existing_urls = set()
@@ -69,10 +79,10 @@ async def run_pipeline(queries: List[str], provider: str, limit: int, semaphore:
                 pass
                 
         # Loại bỏ các URL trùng lặp (nếu có) hoặc đã từng cào / xử lý thành công
-        all_urls = [u for u in set(all_urls_raw) if u not in existing_urls and u not in crawler.crawled_urls]
+        all_urls = [u for u in url_to_query.keys() if u not in existing_urls and u not in crawler.crawled_urls]
         logger.info(f"Tổng số URL tìm được: {len(all_urls_raw)}, cần tải (sau khi lọc trùng): {len(all_urls)}")
 
-        async def process_url(url: str, sem: asyncio.Semaphore) -> str:
+        async def process_url(url: str, original_query: str, sem: asyncio.Semaphore) -> str:
             async with sem:
                 # ── 0. Early Filter: Bỏ qua URL rõ ràng ngoài mầm non
                 url_lower = url.lower()
@@ -131,13 +141,24 @@ async def run_pipeline(queries: List[str], provider: str, limit: int, semaphore:
                     except Exception:
                         pass
                 
-                # Nếu chưa đủ 4 chiều, gọi Ollama LLM
+                # Đọc trước một đoạn để LLM xử lý
+                with open(md_path, "r", encoding="utf-8") as f:
+                    preview_text = f.read(2500)
+                    
+                # BƯỚC MỚI: Gatekeeper (Chấm điểm lọc rác)
+                async with llm_sem:
+                    logger.info(f"Đang chấm điểm Gatekeeper cho: {url}")
+                    score = await llm_enricher.evaluate_relevance(preview_text, original_query, url=url)
+                    
+                if score < 35:
+                    logger.warning(f"BỊ LOẠI (Gatekeeper Score = {score}/100): {url}")
+                    return "FAILED"
+                logger.success(f"PASS GATEKEEPER (Score = {score}/100): {url}")
+
+                # Nếu chưa đủ 4 chiều, gọi Ollama LLM (Pass 2)
                 if not meta.is_valid():
-                    with open(md_path, "r", encoding="utf-8") as f:
-                        preview_text = f.read(1200)
-                        
                     async with llm_sem:
-                        llm_result = await llm_enricher.analyze_document(name=doc_name, url=url, preview=preview_text)
+                        llm_result = await llm_enricher.analyze_document(name=doc_name, url=url, preview=preview_text, user_query=original_query)
                         
                         if llm_result:
                             if llm_result.get("suggested_name"):
@@ -153,6 +174,9 @@ async def run_pipeline(queries: List[str], provider: str, limit: int, semaphore:
                                 meta.source_tier = llm_result.get("source_tier")
                             if not meta.sub_domain_ids and llm_result.get("sub_domain_ids"):
                                 meta.sub_domain_ids = llm_result.get("sub_domain_ids")
+                            if llm_result.get("game_assets_potential"):
+                                # Lưu game assets vào biến tạm hoặc metadata attributes
+                                meta.game_assets_potential = llm_result.get("game_assets_potential")
 
                 doc_dto = DocumentDTO(
                     metadata=meta,
@@ -160,7 +184,12 @@ async def run_pipeline(queries: List[str], provider: str, limit: int, semaphore:
                     converted_md_path=md_path
                 )
                 
-                # BƯỚC MỚI: Mọi tài liệu sau khi tải và qua AI đều BẮT BUỘC phải qua tay người duyệt (need_manual = True)
+                # Hard Drop: Nếu AI đã chấm là "Khác" (Rác/Lạc đề) thì vứt luôn, không bắt user duyệt
+                if meta.doc_type == "khac":
+                    logger.warning(f"AI phân loại là 'Khác' (Rác/Lạc đề), TỪ CHỐI TỰ ĐỘNG: {meta.name}")
+                    return "FAILED"
+                
+                # BƯỚC MỚI: Mọi tài liệu hợp lệ sau khi tải và qua AI đều BẮT BUỘC phải qua tay người duyệt (need_manual = True)
                 doc_dto.need_manual = True
                 
                 file_valid = validator.validate_file(md_path)
@@ -173,7 +202,7 @@ async def run_pipeline(queries: List[str], provider: str, limit: int, semaphore:
                 return "MANUAL"
 
         # Thực thi song song tất cả URL
-        results = await asyncio.gather(*(process_url(u, sem) for u in all_urls))
+        results = await asyncio.gather(*(process_url(u, url_to_query[u], sem) for u in all_urls))
         success_count = results.count("SUCCESS")
         manual_count = results.count("MANUAL")
         fail_count = results.count("FAILED")
@@ -195,8 +224,8 @@ async def run_pipeline(queries: List[str], provider: str, limit: int, semaphore:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Crawler Tài liệu tham khảo IruKa (Local Standalone + MCP Search)")
     parser.add_argument("--queries", type=str, required=True, help="Các từ khóa tìm kiếm, cách nhau bằng dấu phẩy")
-    parser.add_argument("--provider", type=str, default="tavily", choices=["tavily", "exa"], help="Tavily hoặc Exa")
-    parser.add_argument("--limit", type=int, default=5, help="Số kết quả trả về cho mỗi từ khóa")
+    parser.add_argument("--provider", type=str, default="exa", choices=["tavily", "exa"], help="Tavily hoặc Exa")
+    parser.add_argument("--limit", type=int, default=10, help="Số kết quả trả về cho mỗi từ khóa")
     parser.add_argument("--semaphore", type=int, default=5, help="Số URL tải song song")
     
     args = parser.parse_args()

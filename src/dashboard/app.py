@@ -24,6 +24,7 @@ from src.dashboard.components.tabThuThap import render_tab_thu_thap
 from src.dashboard.components.tabThongKe import render_tab_thong_ke
 from src.dashboard.components.tabDanhSach import render_tab_danh_sach
 from src.dashboard.components.tabKhoTaiLieu import render_tab_kho_tai_lieu
+from src.dashboard.components.tabRawFiles import render_tab_raw_files
 
 # ─────────────────────────────────────────────────────────────
 # Khởi tạo session state
@@ -45,7 +46,8 @@ pg_thu_thap = st.Page(render_tab_thu_thap, title="Tìm & Thu thập", icon=":mat
 pg_thong_ke = st.Page(render_tab_thong_ke, title="Thống kê", icon=":material/bar_chart:", url_path="thong_ke")
 pg_danh_sach = st.Page(render_tab_danh_sach, title="Danh sách & Duyệt", icon=":material/fact_check:", url_path="danh_sach")
 pg_kho = st.Page(render_tab_kho_tai_lieu, title="Kho Thành Phẩm", icon=":material/library_books:", url_path="kho_tai_lieu")
+pg_raw = st.Page(render_tab_raw_files, title="Kho Raw", icon=":material/folder_open:", url_path="raw_files")
 
-pg = st.navigation([pg_thu_thap, pg_thong_ke, pg_danh_sach, pg_kho])
+pg = st.navigation([pg_thu_thap, pg_thong_ke, pg_danh_sach, pg_kho, pg_raw])
 
 pg.run()

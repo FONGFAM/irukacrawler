@@ -33,17 +33,34 @@ def render_tab_kho_tai_lieu():
         else:
             hien_thi = df_thanh_pham
 
-        # Bảng dữ liệu hiển thị toàn bộ các trường
-        st.dataframe(hien_thi, hide_index=True, height=450)
+        # ── Phân trang: tính sẵn, bảng trước, selector sau
+        PAGE_SIZE = 20
+        tong_trang = max(1, (len(hien_thi) - 1) // PAGE_SIZE + 1)
+        page_key = "page_kho"
+        trang_hien_tai = st.session_state.get(page_key, 1)
+        start_row = (trang_hien_tai - 1) * PAGE_SIZE
+        df_trang = hien_thi.iloc[start_row: start_row + PAGE_SIZE]
 
-        # Hành động
+        # Bảng dữ liệu hiển thị toàn bộ các trường
+        st.dataframe(df_trang, hide_index=True, height=450)
+
+        # ── Phân trang nằm DƯỚI bảng
+        col_pg1, col_pg2 = st.columns([3, 1])
+        with col_pg1:
+            st.caption(f"Tìm thấy {len(hien_thi)} bản ghi — trang {trang_hien_tai}/{tong_trang}")
+        with col_pg2:
+            st.number_input(
+                f"Trang (/ {tong_trang})",
+                min_value=1, max_value=tong_trang, value=trang_hien_tai, step=1,
+                key=page_key,
+                label_visibility="collapsed",
+            )
+
+        # Hành động — xuất CSV dựa trên trang hiển thị hiện tại (df_trang) hoặc toàn bộ (hien_thi)
         with st.container(horizontal=True):
-            if MANIFEST_PATH.exists():
-                df_raw = pd.DataFrame()
-                if MANIFEST_PATH.stat().st_size > 0:
-                    df_raw = pd.read_csv(MANIFEST_PATH)
-                df_export = df_raw.iloc[hien_thi.index]
-                csv_data = df_export.to_csv(index=False).encode("utf-8-sig")
+            # Lấy các cột quan trọng
+            if not hien_thi.empty:
+                csv_data = hien_thi.to_csv(index=False).encode("utf-8-sig")
                 st.download_button(
                     "Tải xuống CSV để import vào IruKa",
                     data=csv_data,

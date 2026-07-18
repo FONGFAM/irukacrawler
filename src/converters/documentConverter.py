@@ -153,6 +153,13 @@ class DocumentConverter:
         file_path_obj = Path(file_path)
         output_file = self.output_dir / f"{file_path_obj.stem}.md"
         
+        # Kiểm tra xem có phải file ảnh scan không (toàn [Ảnh])
+        real_text = re.sub(r'\[Ảnh:.*?\]', '', text).strip()
+        real_text = re.sub(r'---\s*Trang\s*\d+\s*---', '', real_text).strip()
+        if len(real_text) < 150:
+            logger.warning(f"File có thể là ảnh scan (text thực chỉ {len(real_text)} ký tự): {file_path_obj.name}")
+            text = f"<!-- IMAGE_ONLY_PDF: Không thể trích xuất text. Cần OCR. -->\n\n{text}"
+        
         with open(output_file, "w", encoding="utf-8") as f:
             f.write(text)
             

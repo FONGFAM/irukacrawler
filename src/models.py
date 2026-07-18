@@ -11,12 +11,15 @@ class DocumentMetadata(BaseModel):
     
     # Bắt buộc (4 chiều phân loại IruKa)
     linh_vucs: List[str] = Field(default_factory=list, description="nhan_thuc, ngon_ngu, tham_my, the_chat, tinh_cam_xh")
-    age_bands: List[str] = Field(default_factory=list, description="34, 45, 56, g1")
-    doc_type: str = Field("", description="VD: sgk.sgk, pl.thong_tu")
-    source_tier: int = Field(0, description="1, 2, hoặc 3")
+    sub_domain_ids: List[str] = Field(default_factory=list, description="IDs lĩnh vực nhỏ")
+    source_tier: Optional[int] = Field(None, description="Độ tin cậy: 1 (Kinh nghiệm), 2 (SGK), 3 (Luật)")
+    game_assets_potential: Optional[str] = Field(None, description="Tóm tắt về các yếu tố có thể dùng làm game")
+    human_verified: bool = Field(False, description="Đã được con người duyệt chưa")
     
     # Tuỳ chọn hoặc phụ thuộc doc_type
     doc_group: str = Field("", description="PL, SGK, GT, BT, KN, NC, MD")
+    age_bands: List[str] = Field(default_factory=list, description="34, 45, 56, g1")
+    doc_type: str = Field("", description="VD: sgk.sgk, pl.thong_tu")
     sub_domain_ids: List[str] = Field(default_factory=list)
     skill_ids: List[str] = Field(default_factory=list)
     level_ids: List[str] = Field(default_factory=list)
