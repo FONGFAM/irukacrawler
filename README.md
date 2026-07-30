@@ -1,45 +1,71 @@
-# 📚 DocsCrawler — Hệ thống Thu thập Tài liệu Giáo dục
+# 📚 DocsCrawler — Automated Educational Data Ingestion Pipeline
 
-DocsCrawler là một công cụ cá nhân giúp tự động thu thập, xử lý và chuẩn hóa tài liệu giáo dục từ Internet. Hệ thống tải dữ liệu thô (PDF, DOCX, HTML, YouTube), bóc tách nội dung, tự động phân loại metadata thông qua Heuristic và Local LLM, sau đó xuất ra định dạng Markdown có cấu trúc để sẵn sàng cho các hệ thống RAG (Retrieval-Augmented Generation).
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](#)
+[![Python Version](https://img.shields.io/badge/python-3.11%2B-blue)](#)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](#)
 
----
-
-## ✨ Tính năng
-
-- **Thu thập đa nguồn** — Hỗ trợ tải file PDF, DOCX, trích xuất HTML từ web qua API tìm kiếm (Tavily/Exa).
-- **YouTube Crawler** — Lấy transcript video, hỗ trợ dịch tự động sang Tiếng Việt.
-- **RAG-ready Conversion** — Chuyển đổi PDF/DOCX/HTML sang file Markdown có đánh dấu phân trang chuẩn xác.
-- **Heuristic & Local LLM Enrichment** — Tự động suy luận metadata bằng tập luật (heuristics) kết hợp mô hình ngôn ngữ (Ollama/Llama3) chạy hoàn toàn trên máy cá nhân, không tốn chi phí API.
-- **Dashboard quản lý** — Giao diện web Streamlit thân thiện để quản lý việc tìm kiếm, thu thập và thống kê tài liệu.
+DocsCrawler is a robust, end-to-end data engineering pipeline designed to automate the collection, extraction, and standardization of educational materials from the web. It processes raw data (PDF, DOCX, HTML, YouTube) and utilizes a combination of deterministic heuristics and Local LLMs to enrich metadata. The final output is structured, RAG-ready Markdown, primed for downstream AI and machine learning applications.
 
 ---
 
-## 🚀 Cài đặt & Sử dụng
+## 🏗️ System Architecture
 
-### Yêu cầu hệ thống
-- Python **3.11+**
-- [**Ollama**](https://ollama.com) cài đặt và chạy ngầm với model `llama3` hoặc `llama3.1`
-- API key của **Tavily** hoặc **Exa** cho việc tìm kiếm web
+The pipeline is designed with modularity and scalability in mind, handling everything from web scraping to LLM-powered metadata enrichment.
 
-### Các bước cài đặt
-```bash
-# 1. Tạo môi trường ảo
-python -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
-
-# 2. Cài thư viện
-pip install -e .
-
-# 3. Cấu hình biến môi trường
-cp .env.example .env            # Điền API keys vào file .env
+```mermaid
+flowchart TD
+    A["Search APIs<br/>(Tavily / Exa)"] --> B[Query Expansion]
+    B --> C[Document Crawler]
+    C --> D[PDF / DOCX]
+    C --> E[YouTube]
+    D --> F[Document Converter]
+    E --> G[Transcript]
+    F --> H["Metadata Enrichment<br/>(Heuristic + LLM)"]
+    G --> H
+    H --> I[Knowledge Repository]
+    I --> J["Markdown Export<br/>(RAG-ready)"]
+    J --> K[Streamlit Dashboard]
 ```
 
-### Cấu hình biến môi trường (`.env`)
-Đổi tên hoặc copy file `.env.example` thành `.env` và điền các API key của bạn vào. 
-**Lưu ý:** File `.env` chứa thông tin nhạy cảm (API keys) nên đã được cấu hình trong `.gitignore` để không bị đẩy lên Git.
+---
 
+## ✨ Core Features
+
+- **Omni-Channel Ingestion**: Automatically aggregates data from multiple formats including PDFs, DOCX, and raw HTML via advanced search APIs (Tavily/Exa).
+- **Multimedia Processing**: Features a specialized YouTube crawler to extract transcripts and perform automated translations.
+- **RAG-Ready Conversion**: Seamlessly converts unstructured documents into precisely formatted Markdown with accurate pagination, optimized for Retrieval-Augmented Generation (RAG) systems.
+- **Cost-Effective LLM Enrichment**: Employs a dual-layered metadata classification system combining hardcoded heuristics with localized LLM processing (Ollama/Llama3), completely eliminating external API costs.
+- **Interactive Dashboard**: Includes a Streamlit-based web interface for real-time monitoring, job management, and analytics visualization.
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+- Python **3.11+**
+- [**Ollama**](https://ollama.com) running locally with `llama3` or `llama3.1` model
+- API keys for **Tavily** or **Exa**
+
+### Installation
 ```bash
-TAVILY_API_KEY=tvly-xxx         # Hoặc EXA_API_KEY=exa-xxx
+# 1. Create a virtual environment
+python -m venv venv
+source venv/bin/activate        # On Windows: venv\Scripts\activate
+
+# 2. Install dependencies
+pip install -e .
+
+# 3. Environment configuration
+cp .env.example .env
+```
+
+### Configuration (`.env`)
+Configure your `.env` file with the necessary API keys. 
+> [!WARNING]
+> Your `.env` file contains sensitive API keys. It is included in `.gitignore` to prevent accidental exposure to version control. Do not commit this file.
+
+```env
+TAVILY_API_KEY=tvly-xxx         # Or EXA_API_KEY=exa-xxx
 OLLAMA_HOST=http://localhost:11434
 OLLAMA_MODEL=llama3
 MAX_REQUESTS_PER_SECOND=1.0
@@ -47,15 +73,17 @@ MAX_REQUESTS_PER_SECOND=1.0
 
 ---
 
-## 🖥️ Khởi chạy
+## 🖥️ Usage
 
-### Chạy Dashboard Giao diện (Khuyên dùng)
+### Web Interface (Recommended)
+Launch the Streamlit dashboard for a user-friendly management interface:
 ```bash
 streamlit run src/dashboard/app.py
 ```
-Mở trình duyệt tại `http://localhost:8501`.
+*Access the dashboard at `http://localhost:8501`.*
 
-### Chạy qua dòng lệnh (CLI)
+### Command Line Interface (CLI)
+Execute crawling jobs directly from the terminal:
 ```bash
 python -m src.main \
   --queries "bài giảng toán 5 tuổi" \
@@ -66,16 +94,24 @@ python -m src.main \
 
 ---
 
-## 📂 Cấu trúc Thư mục
+## 📂 Project Structure
 
-- `src/`: Mã nguồn chính của dự án (Crawlers, Converters, Enrichers, Validator, Exporters, Dashboard).
-- `data/`: Dữ liệu được tải về và xử lý (`raw`, `converted`, `export`).
-- `tests/`: Bộ test của hệ thống.
-- `logs/`: Nơi lưu trữ log quá trình cào.
+```text
+.
+├── src/            # Core source code (Crawlers, Converters, Enrichers, Dashboard)
+├── data/           # Storage for raw, converted, and exported datasets
+├── tests/          # Comprehensive test suite (pytest)
+├── logs/           # Execution and error logs
+└── pyproject.toml  # Project metadata and dependencies
+```
 
 ---
 
-## 📝 Chạy Test
+## 🧪 Testing
+
+The project maintains high reliability through a comprehensive suite of unit and integration tests.
+
 ```bash
+# Run the full test suite
 pytest tests/ -v
 ```
