@@ -1,9 +1,9 @@
 [project]
-name = "irukacrawler"
+name = "docscrawler"
 version = "0.1.0"
-description = "Hệ thống Cào tài liệu tham khảo cho Não AI IruKa"
+description = "Hệ thống Thu thập tài liệu giáo dục cá nhân"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = [
     "httpx>=0.27.0",
     "playwright>=1.44.0",

@@ -254,7 +254,7 @@ async def run_pipeline(queries: List[str], provider: str, limit: int, semaphore:
         await crawler.close()
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Crawler Tài liệu tham khảo IruKa (Local Standalone + MCP Search)")
+    parser = argparse.ArgumentParser(description="Crawler Tài liệu tham khảo DocsCrawler (Local Standalone + MCP Search)")
     parser.add_argument("--queries", type=str, required=True, help="Các từ khóa tìm kiếm, cách nhau bằng dấu phẩy")
     parser.add_argument("--provider", type=str, default="tavily", choices=["tavily", "exa", "youtube"], help="Tavily, Exa, hoặc YouTube")
     parser.add_argument("--limit", type=int, default=5, help="Số kết quả trả về cho mỗi từ khóa")

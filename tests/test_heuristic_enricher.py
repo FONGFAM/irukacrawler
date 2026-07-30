@@ -52,7 +52,7 @@ class TestNgonNgu:
         assert "nn.van_hoc" in r.get("sub_domain_ids", [])
 
     def test_ke_chuyen_default_doctype_truyen_tho(self, h):
-        r = h.apply_rules("Kể chuyện Cô bé quàng khăn đỏ", "https://example.com/doc")
+        r = h.apply_rules("Truyện cổ tích Cô bé quàng khăn đỏ", "https://example.com/doc")
         assert r.get("doc_type") == "bt.truyen_tho"
 
     def test_phat_trien_ngon_ngu_suy_nghe_noi(self, h):
@@ -135,16 +135,16 @@ class TestDocTypeRules:
         assert r.get("doc_type") == "gt.giao_an"
 
     def test_sgk_suy_sgk_sgk(self, h):
-        r = h.apply_rules("Sách giáo khoa Toán tiểu học lớp 1", "https://example.com/doc")
+        r = h.apply_rules("Sách giáo khoa Toán mầm non lớp 1", "https://example.com/doc")
         assert r.get("doc_type") == "sgk.sgk"
         assert r.get("source_tier") == 2
 
     def test_bai_tap_suy_sgk_sbt(self, h):
-        r = h.apply_rules("Vở bài tập chữ cái tiếng Việt 5 tuổi", "https://example.com/doc")
+        r = h.apply_rules("Vở bài tập chữ cái tiếng Việt mầm non", "https://example.com/doc")
         assert r.get("doc_type") == "sgk.sbt"
 
     def test_nang_cao_suy_bt_nang_cao(self, h):
-        r = h.apply_rules("Bài tập nâng cao Toán dành cho trẻ lớp lá", "https://example.com/doc")
+        r = h.apply_rules("Bài tập nâng cao Toán dành cho mầm non lớp lá", "https://example.com/doc")
         assert r.get("doc_type") == "bt.nang_cao"
 
     def test_thong_tu_suy_pl_thong_tu(self, h):
@@ -174,8 +174,8 @@ class TestAgeBandRules:
         assert "56" in r.get("age_bands", [])
 
     def test_lop_1_suy_age_g1(self, h):
-        r = h.apply_rules("Sách giáo khoa Tiếng Việt lớp 1", "https://example.com/doc")
-        assert "g1" in r.get("age_bands", [])
+        r = h.apply_rules("Sách giáo khoa Tiếng Việt mầm non lớp 1", "https://example.com/doc")
+        assert "g1_hk1" in r.get("age_bands", [])
 
 
 # ─────────────────────────────────────────────────────────────
@@ -205,7 +205,7 @@ class TestDocGroupInference:
         assert r.get("doc_group") == "GT"  # gt.giao_an → GT
 
     def test_truyen_tho_suy_doc_group_BT(self, h):
-        r = h.apply_rules("Kể chuyện Ba Chú Heo Con", "https://example.com/doc")
+        r = h.apply_rules("Truyện tranh Ba Chú Heo Con", "https://example.com/doc")
         assert r.get("doc_group") == "BT"  # bt.truyen_tho → BT
 
     def test_thong_tu_suy_doc_group_PL(self, h):

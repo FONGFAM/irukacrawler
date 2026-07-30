@@ -1,5 +1,5 @@
 """
-tests/test_flow.py — Integration test toàn bộ pipeline IruKa (E2E).
+tests/test_flow.py — Integration test toàn bộ pipeline (E2E).
 
 Kiểm tra luồng đầy đủ:
   Search (mock) → Crawl (mock) → Convert (real) → Enrich Heuristic (real)
@@ -104,8 +104,8 @@ class TestFlowHeuristicPass:
         assert meta.is_valid(), f"Heuristic phải đủ 4 chiều. meta={meta_dict}"
         assert "ngon_ngu" in meta.linh_vucs
         assert "56" in meta.age_bands
-        assert meta.doc_type == "bt.truyen_tho"
-        assert meta.source_tier == 1
+        assert meta.doc_type == "gt.giao_an"
+        assert meta.source_tier == 2
 
         # Bước 5: Validate
         assert validator.validate_file(md_path) is True
@@ -122,7 +122,7 @@ class TestFlowHeuristicPass:
         exported_files = list(export_root.rglob("*.md"))
         assert len(exported_files) == 1
         exported_path = str(exported_files[0])
-        assert "04_BT_bo_tro_nang_cao" in exported_path, f"Zone sai: {exported_path}"
+        assert "03_GT_giao_trinh_truong" in exported_path, f"Zone sai: {exported_path}"
         assert "56" in exported_path, f"Age band sai trong path: {exported_path}"
         assert "ngon_ngu" in exported_path, f"Linh vuc sai trong path: {exported_path}"
 
@@ -130,7 +130,7 @@ class TestFlowHeuristicPass:
         manifest = Path(tmp_export["export"]).parent / "manifest.csv"
         assert manifest.exists()
         content = manifest.read_text(encoding="utf-8")
-        assert "bt.truyen_tho" in content
+        assert "gt.giao_an" in content
         assert "exported" in content
 
     def test_flow_frontmatter_trong_file_export(self, tmp_export):

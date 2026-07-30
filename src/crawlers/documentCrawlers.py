@@ -25,7 +25,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 load_dotenv()
 
 
-USER_AGENT = os.getenv("USER_AGENT", "IruKa-Educational-Crawler/1.0 (contact: mr.dao@irukaedu.vn)")
+USER_AGENT = os.getenv("USER_AGENT", "DocsCrawler/1.0 (contact: admin@localhost)")
 MAX_REQUESTS_PER_SECOND = float(os.getenv("MAX_REQUESTS_PER_SECOND", "1.0"))
 
 # Map content-type / đuôi file ra phần mở rộng chuẩn

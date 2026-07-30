@@ -42,7 +42,7 @@ class LocalLLMEnricher:
         self.client = ollama.AsyncClient(host=os.getenv("OLLAMA_HOST", "http://localhost:11434"))
 
     async def analyze_document(self, name: str, url: str, preview: str, user_query: str = "") -> Optional[Dict[str, Any]]:
-        """Dùng LLM để phân loại tài liệu theo chuẩn IruKa.
+        """Dùng LLM để phân loại tài liệu theo chuẩn.
 
         Args:
             name: Tên tài liệu.

@@ -1,10 +1,9 @@
 """
-taxonomy.py — Chuẩn phân loại IruKa (Single Source of Truth)
+taxonomy.py — Chuẩn phân loại tài liệu (Single Source of Truth)
 
 Mọi module trong hệ thống (Heuristic, Validator, LLM Enricher, Exporter)
 đều PHẢI dùng các hằng số từ file này thay vì hardcode.
 
-Nguồn tham chiếu: 08-07-2026__dev-ops__plan-he-thong-cao-tai-lieu-tham-khao.md § 5
 """
 from typing import Dict, Set
 

@@ -13,7 +13,7 @@ class DocumentMetadata(BaseModel):
     source_url: str = Field(..., description="URL gốc của tài liệu")
     crawled_at: str = Field(default_factory=lambda: datetime.now().isoformat())
     
-    # Bắt buộc (4 chiều phân loại IruKa)
+    # Bắt buộc (4 chiều phân loại chính)
     linh_vucs: List[str] = Field(default_factory=list, description="nhan_thuc, ngon_ngu, tham_my, the_chat, tinh_cam_xh")
     sub_domain_ids: List[str] = Field(default_factory=list, description="IDs lĩnh vực nhỏ")
     source_tier: Optional[int] = Field(None, description="Độ tin cậy: 1 (Kinh nghiệm), 2 (SGK), 3 (Luật)")

@@ -3,7 +3,7 @@ validator.py — Kiểm soát chất lượng tài liệu trước khi export.
 
 Checklist theo Plan § 2.6 / § 3.2:
 - File .md: tồn tại, > 500 ký tự, < 5MB, chất lượng nội dung
-- Metadata: đủ 4 chiều, các giá trị thuộc danh mục chuẩn IruKa
+- Metadata: đủ 4 chiều, các giá trị thuộc danh mục chuẩn
 - Các giá trị lạ (không thuộc taxonomy) → tự động lọc bỏ (không block)
 """
 import os
@@ -80,7 +80,7 @@ class Validator:
     # ── Metadata validation ────────────────────────────────────────────────
 
     def validate_metadata(self, metadata) -> bool:
-        """Kiểm tra và tự động làm sạch metadata theo chuẩn IruKa.
+        """Kiểm tra và tự động làm sạch metadata theo chuẩn.
 
         - Lọc bỏ giá trị lạ trong linh_vucs, age_bands, sub_domain_ids, level_ids.
         - Kiểm tra doc_type thuộc 25 loại; nếu không → gán 'khac'.

@@ -1,5 +1,5 @@
 """
-tests/test_taxonomy.py — Kiểm tra tính toàn vẹn của danh mục chuẩn IruKa.
+tests/test_taxonomy.py — Kiểm tra tính toàn vẹn của danh mục chuẩn.
 """
 import pytest
 from src.taxonomy import (
@@ -23,9 +23,9 @@ class TestTaxonomyCompleteness:
         assert len(VALID_LINH_VUCS) == 5
         assert VALID_LINH_VUCS == {"nhan_thuc", "ngon_ngu", "tham_my", "the_chat", "tinh_cam_xh"}
 
-    def test_age_bands_co_dung_4_gia_tri(self):
-        assert len(VALID_AGE_BANDS) == 4
-        assert VALID_AGE_BANDS == {"34", "45", "56", "g1"}
+    def test_age_bands_co_dung_5_gia_tri(self):
+        assert len(VALID_AGE_BANDS) == 5
+        assert VALID_AGE_BANDS == {"34", "45", "56", "g1_hk1", "g1_hk2"}
 
     def test_doc_types_co_it_nhat_25_loai(self):
         # 25 loại + 'khac' fallback

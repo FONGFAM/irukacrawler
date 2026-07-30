@@ -62,9 +62,9 @@ def render_tab_kho_tai_lieu():
             if not hien_thi.empty:
                 csv_data = hien_thi.to_csv(index=False).encode("utf-8-sig")
                 st.download_button(
-                    "Tải xuống CSV để import vào IruKa",
+                    "Tải xuống CSV thành phẩm",
                     data=csv_data,
-                    file_name=f"iruka_thanhpham_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                    file_name=f"thanhpham_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
                     mime="text/csv",
                     icon=":material/download:",
                     type="primary"

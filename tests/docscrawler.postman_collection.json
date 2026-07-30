@@ -1,9 +1,9 @@
 {
   "info": {
-    "name": "IruKa Crawler — API Test Collection",
-    "description": "Collection kiểm tra các API endpoint mà hệ thống IruKa Crawler phụ thuộc:\n- Ollama Local LLM (http://localhost:11434)\n- Tavily Search API\n- Exa Search API\n\nCách dùng:\n1. Import file này vào Postman\n2. Set biến môi trường: TAVILY_API_KEY, EXA_API_KEY\n3. Đảm bảo Ollama đang chạy tại localhost:11434\n4. Chạy lần lượt từng folder theo thứ tự",
+    "name": "DocsCrawler — API Test Collection",
+    "description": "Collection kiểm tra các API endpoint mà hệ thống DocsCrawler phụ thuộc:\n- Ollama Local LLM (http://localhost:11434)\n- Tavily Search API\n- Exa Search API\n\nCách dùng:\n1. Import file này vào Postman\n2. Set biến môi trường: TAVILY_API_KEY, EXA_API_KEY\n3. Đảm bảo Ollama đang chạy tại localhost:11434\n4. Chạy lần lượt từng folder theo thứ tự",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "_postman_id": "iruka-crawler-api-tests-v1"
+    "_postman_id": "docscrawler-api-tests-v1"
   },
   "variable": [
     { "key": "OLLAMA_HOST", "value": "http://localhost:11434" },

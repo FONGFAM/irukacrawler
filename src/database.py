@@ -7,7 +7,7 @@ from pathlib import Path
 
 load_dotenv()
 
-DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///data/export/irukadb.sqlite")
+DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///data/export/docscrawlerdb.sqlite")
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
