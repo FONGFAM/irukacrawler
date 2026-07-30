@@ -59,4 +59,5 @@ logs/
 # Project specific
 .gemini/
 .agents/
+.claude/
 .pytest_cache/
