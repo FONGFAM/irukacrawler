@@ -152,6 +152,10 @@ class BaseCrawler:
     # Tải và lưu file (dedup bằng SHA-256)
     # ─────────────────────────────────────────────
     async def download_file(self, url: str) -> Optional[str]:
+        if url in self.crawled_urls:
+            logger.info(f"Bỏ qua URL đã cào (Dedup Cấp 2): {url}")
+            return None
+
         # 1. Kiểm tra Blacklist
         parsed = urlparse(url)
         domain = parsed.netloc

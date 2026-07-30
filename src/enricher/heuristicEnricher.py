@@ -211,6 +211,12 @@ class HeuristicEnricher:
         elif has_kw(["sách giáo viên", "hướng dẫn giáo viên"]):
             metadata["doc_type"] = "sgk.sgv"
             metadata["source_tier"] = max(metadata["source_tier"], 2)
+        elif has_kw(["nâng cao", "bài tập nâng cao"]):
+            metadata["doc_type"] = "bt.nang_cao"
+        elif has_kw(["bổ trợ", "tài liệu bổ trợ", "worksheet", "phiếu bài tập", "phiếu ôn tập"]):
+            metadata["doc_type"] = "bt.bo_tro"
+        elif has_kw(["kỹ năng", "kỹ năng mềm"]):
+            metadata["doc_type"] = "bt.ky_nang"
         elif has_kw(["sách bài tập", "vở bài tập", "bài tập"]):
             metadata["doc_type"] = "sgk.sbt"
             metadata["source_tier"] = max(metadata["source_tier"], 2)
@@ -227,12 +233,6 @@ class HeuristicEnricher:
             metadata["doc_type"] = "md.video"
         elif has_kw(["âm thanh", "mp3", "audio", "nhạc beat"]):
             metadata["doc_type"] = "md.am_thanh"
-        elif has_kw(["nâng cao", "bài tập nâng cao"]):
-            metadata["doc_type"] = "bt.nang_cao"
-        elif has_kw(["bổ trợ", "tài liệu bổ trợ", "worksheet", "phiếu bài tập", "phiếu ôn tập"]):
-            metadata["doc_type"] = "bt.bo_tro"
-        elif has_kw(["kỹ năng", "kỹ năng mềm"]):
-            metadata["doc_type"] = "bt.ky_nang"
         elif has_kw(["quốc tế", "montessori", "reggio emilia", "waldorf", "steam", "stem"]):
             metadata["doc_type"] = "gt.quoc_te"
 

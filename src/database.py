@@ -9,6 +9,11 @@ load_dotenv()
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///data/export/docscrawlerdb.sqlite")
 
+if DATABASE_URL.startswith("sqlite:///"):
+    db_path = DATABASE_URL.replace("sqlite:///", "")
+    if db_path != ":memory:":
+        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()

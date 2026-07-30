@@ -21,6 +21,10 @@ from src.enricher.heuristicEnricher import HeuristicEnricher
 from src.enricher.validator import Validator
 from src.exporter.LocalExporter import LocalExporter
 from src.models import DocumentDTO, DocumentMetadata
+from src.database import init_db
+
+# Ensure tables exist for tests
+init_db()
 
 
 # ─────────────────────────────────────────────────────────────
@@ -126,12 +130,14 @@ class TestFlowHeuristicPass:
         assert "56" in exported_path, f"Age band sai trong path: {exported_path}"
         assert "ngon_ngu" in exported_path, f"Linh vuc sai trong path: {exported_path}"
 
-        # Kiểm tra manifest.csv
-        manifest = Path(tmp_export["export"]).parent / "manifest.csv"
-        assert manifest.exists()
-        content = manifest.read_text(encoding="utf-8")
-        assert "gt.giao_an" in content
-        assert "exported" in content
+        # Kiểm tra trong database
+        from src.database import SessionLocal, DocumentModel
+        db = SessionLocal()
+        db_doc = db.query(DocumentModel).filter(DocumentModel.name == name).first()
+        assert db_doc is not None, "Không tìm thấy document trong database"
+        assert db_doc.doc_type == "gt.giao_an"
+        assert db_doc.status == "exported"
+        db.close()
 
     def test_flow_frontmatter_trong_file_export(self, tmp_export):
         """File được export phải có frontmatter YAML đầy đủ."""
